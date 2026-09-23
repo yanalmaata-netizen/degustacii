@@ -274,7 +274,7 @@ function state(title, text, extra){ app.className = ''; app.innerHTML = '<div cl
 function loading(){ app.className = ''; app.innerHTML = '<div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div>'; }
 function critOf(T, d){ const b = (T.blocks || []).find(x => x.name === d.block); return b && b.criteria.length ? b.criteria : (T.criteria || KC); }
 function labelOf(T, d){
-  if (!d.section) return (/бар/i.test(d.block || '') ? 'Напиток ' : 'Блюдо ') + d.n;
+  if (!d.section){ const pr = ROLE_PRESETS.find(x => x.block === d.block); const same = T.dishes.filter(x => x.block === d.block); return (pr ? pr.item : 'Позиция') + ' ' + (same.indexOf(d) + 1); }
   const same = T.dishes.filter(x => x.section === d.section);
   return same.length > 1 ? d.section + ' ' + (same.indexOf(d) + 1) : d.section;
 }
@@ -299,7 +299,6 @@ function route(){
   $$('.modal').forEach(m => m.remove());
   if (p === 't' && id) return viewForm(decodeURIComponent(id));
   if (p === 'r' && id) return viewResults(decodeURIComponent(id));
-  if (p === 'admin') return viewAdmin();
   if (p === 'edit') return viewEditor(id ? decodeURIComponent(id) : '');
   if (p === 'kitchen' && id) return viewKitchen(decodeURIComponent(id));
   return viewHome();
@@ -308,44 +307,65 @@ window.addEventListener('hashchange', route);
 
 /* ---------------- главная ---------------- */
 let HOMEP = 'all';
+const ROLE_PRESETS = [
+  {role: 'Шеф-повар', block: 'Кухня', gen: 'шеф-повара', criteria: KC, item: 'Блюдо'},
+  {role: 'Шеф-бармен', block: 'Бар', gen: 'шеф-бармена', criteria: BC, item: 'Напиток'},
+  {role: 'Шеф-кальянщик', block: 'Кальян', gen: 'шеф-кальянщика', criteria: ['Вкус','Дым','Крепость','Длительность','Подача','Общее впечатление'], item: 'Кальян'}
+];
 async function viewHome(){
   loading();
   let r; try { r = await apiGet({action:'catalog'}); } catch(e){ return state('Нет связи', 'Не удалось загрузить список. Обновите страницу.'); }
   if (!r.ok) return state('Ошибка', r.error || '');
   app.className = '';
   const projects = []; r.tastings.forEach(t => { if (projects.indexOf(projOf(t)) < 0) projects.push(projOf(t)); });
-  const fp = HOMEP && projects.indexOf(HOMEP) >= 0 ? HOMEP : 'all';
-  let h = '<header class="hero"><p class="brand"><span>Avalon Projects</span><a href="#/admin">Управление</a></p><h1>Дегустации</h1><p class="ppl" style="margin:0">Проекты, анкеты, оценки и итоги</p></header>';
+  const fp = HOMEP !== 'all' && projects.indexOf(HOMEP) >= 0 ? HOMEP : 'all';
+  let h = '<header class="hero"><p class="brand"><span>Анкеты и итоги</span></p><h1>Дегустации</h1><p class="ppl" style="margin:0 0 18px">Анкета для участников по ссылке – итоги собираются сами</p><a class="btn pri" href="#/edit" style="padding:14px 24px;font-size:16px">Новая дегустация</a></header>';
+  h += '<h2 class="bh" style="font-size:34px;margin-top:30px">Все дегустации</h2>';
   if (projects.length > 1) h += '<nav class="flt"><div class="chips" data-hp>' + ['all'].concat(projects).map(p => '<button data-v="' + esc(p) + '"' + (fp === p ? ' class="on"' : '') + '>' + (p === 'all' ? 'Все проекты' : esc(p)) + '</button>').join('') + '</div></nav>';
-  if (!r.tastings.length) h += '<div class="card"><p class="muted">Дегустаций пока нет. Создайте первую в «Управлении».</p></div>';
+  if (!r.tastings.length) h += '<div class="card"><p class="muted" style="margin:0">Пока пусто. Нажмите «Новая дегустация».</p></div>';
   projects.filter(p => fp === 'all' || p === fp).forEach(p => {
-  h += '<h2 class="bh" style="font-size:34px;margin-top:26px">' + esc(p) + '</h2><div class="cat" style="margin-top:10px">';
-  r.tastings.filter(t => projOf(t) === p).forEach(t => {
-    h += '<article class="tc"><div class="top"><div class="tt"><div><h3>' + esc(t.title) + '</h3><p class="meta">' + esc(t.date) + '</p></div>' +
-      (t.avg != null ? '<div class="score"><b>' + fmt(t.avg) + '</b><span>из 5</span></div>' : '') + '</div>' +
-      '<p class="meta">' + t.blocks.map(b => esc(b.signature || b.name)).join(' · ') + '</p>' +
-      '<span class="pill ' + (t.active ? 'open">Анкета открыта' : 'done">Завершена') + '</span></div>' +
-      '<div class="bot"><p class="stats"><span>Участников <b>' + t.guests + (t.invited ? ' из ' + t.invited : '') + '</b></span><span>Позиций <b>' + t.positions + '</b></span>' +
-      t.blocks.filter(b => b.avg != null).map(b => '<span>' + esc(b.name) + ' <b>' + fmt(b.avg) + '</b></span>').join('') + '</p>' +
-      '<div class="row">' + (t.active ? '<a class="btn sm pri" href="#/t/' + esc(t.id) + '">Анкета</a>' : '') +
-      '<a class="btn sm navy" href="#/r/' + esc(t.id) + '">Итоги</a><button class="btn sm" data-qr="' + esc(t.id) + '">QR</button></div></div></article>';
+    h += '<p class="sub" style="margin:22px 0 0;font-size:14px;font-weight:700;color:var(--ink)">' + esc(p) + '</p><div class="cat" style="margin-top:10px">';
+    r.tastings.filter(t => projOf(t) === p).forEach(t => {
+      h += '<article class="tc"><div class="top"><div class="tt"><div><h3>' + esc(t.title) + '</h3><p class="meta">' + esc(t.date) + '</p></div>' +
+        (t.avg != null ? '<div class="score"><b>' + fmt(t.avg) + '</b><span>из 5</span></div>' : '') + '</div>' +
+        '<p class="meta">' + t.blocks.map(b => esc(b.signature || b.name)).join(' · ') + '</p>' +
+        '<span class="pill ' + (t.active ? 'open">Анкета открыта' : 'done">Анкета закрыта') + '</span></div>' +
+        '<div class="bot"><p class="stats"><span>Участников <b>' + t.guests + (t.invited ? ' из ' + t.invited : '') + '</b></span><span>Позиций <b>' + t.positions + '</b></span>' +
+        t.blocks.filter(b => b.avg != null).map(b => '<span>' + esc(b.name) + ' <b>' + fmt(b.avg) + '</b></span>').join('') + '</p>' +
+        '<div class="row"><a class="btn sm navy" href="#/r/' + esc(t.id) + '">Итоги</a><button class="btn sm pri" data-qr="' + esc(t.id) + '">Ссылка на анкету</button><button class="btn sm" data-more="' + esc(t.id) + '">Ещё</button></div>' +
+        '<div class="row" data-morebox="' + esc(t.id) + '" hidden style="margin-top:8px"><a class="btn sm" href="#/edit/' + esc(t.id) + '">Изменить</a><a class="btn sm" href="#/kitchen/' + esc(t.id) + '">После дегустации</a><button class="btn sm" data-open="' + esc(t.id) + '" data-to="' + (t.active ? '0' : '1') + '">' + (t.active ? 'Закрыть анкету' : 'Открыть анкету') + '</button></div></div></article>';
+    });
+    h += '</div>';
   });
-  h += '</div>';
-  });
-  h += '<footer>Avalon Projects</footer>';
+  h += '<footer>Дегустации</footer>';
   app.innerHTML = h;
   $$('[data-hp] button').forEach(b => b.onclick = () => { HOMEP = b.dataset.v; viewHome(); });
-  $$('[data-qr]').forEach(b => b.onclick = () => showQR(b.dataset.qr));
+  $$('[data-qr]').forEach(b => b.onclick = () => showQR(b.dataset.qr, r.tastings.find(t => t.id === b.dataset.qr)));
+  $$('[data-more]').forEach(b => b.onclick = () => { const x = $('[data-morebox="' + b.dataset.more + '"]'); x.hidden = !x.hidden; });
+  $$('[data-open]').forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = 'Сохраняем'; await apiPost({action:'setOpen', pin: pin(), t: b.dataset.open, open: b.dataset.to === '1'}).catch(() => {}); viewHome(); });
 }
 
-function showQR(id){
+function inviteText(t, url){
+  const who = (t.blocks || []).map(b => b.signature || b.name).filter(Boolean);
+  const when = t.date ? ' ' + t.date : '';
+  return 'Добрый день, уважаемые коллеги.\n' +
+    (who.length ? who.join(' и ') + (who.length > 1 ? ' представят' : ' представит') + ' дегустацию' : 'Приглашаем на дегустацию') + (t.project ? ' в ' + t.project : '') + (when ? ' –' + when : '') + '.\n' +
+    'Ссылка на дегустационный лист:\n' + url + '\n' +
+    'Откройте его на телефоне до начала и выберите себя в списке. Каждую позицию оцените по критериям, при желании оставьте комментарий. Оценки лучше ставить сразу после подачи и до общего обсуждения – так мнение каждого останется независимым.';
+}
+function showQR(id, t){
   const url = linkForm(id);
   const m = document.createElement('div'); m.className = 'modal';
-  m.innerHTML = '<div class="box"><h3>Анкета ' + esc(id) + '</h3><div class="qr" id="qrbox"></div><p class="lnk">' + esc(url) + '</p><div class="row" style="justify-content:center"><button class="btn sm" id="qcopy">Скопировать ссылку</button><a class="btn sm navy" id="qdl" download="QR-' + esc(id) + '.png">Скачать QR</a><button class="btn sm" id="qclose">Закрыть</button></div></div>';
+  m.innerHTML = '<div class="box"><h3>Ссылка на анкету</h3><div class="qr" id="qrbox"></div><p class="lnk">' + esc(url) + '</p>' +
+    '<div class="row" style="justify-content:center"><button class="btn sm pri" id="qshare">Отправить</button><button class="btn sm" id="qcopy">Скопировать ссылку</button><button class="btn sm" id="qmsg">Скопировать приглашение</button><a class="btn sm navy" id="qdl" download="QR-' + esc(id) + '.png">Скачать QR</a><a class="btn sm" href="#/t/' + esc(id) + '" target="_blank" rel="noopener">Открыть анкету</a><button class="btn sm" id="qclose">Закрыть</button></div></div>';
   document.body.appendChild(m);
+  const msg = inviteText(t || {}, url);
+  const copy = (txt, b, done) => { const ok = () => { b.textContent = done; }; if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => {}); else ok(); };
   m.onclick = e => { if (e.target === m) m.remove(); };
   $('#qclose', m).onclick = () => m.remove();
-  $('#qcopy', m).onclick = () => { navigator.clipboard && navigator.clipboard.writeText(url); $('#qcopy', m).textContent = 'Скопировано'; };
+  $('#qcopy', m).onclick = () => copy(url, $('#qcopy', m), 'Ссылка скопирована');
+  $('#qmsg', m).onclick = () => copy(msg, $('#qmsg', m), 'Приглашение скопировано');
+  $('#qshare', m).onclick = () => { if (navigator.share) navigator.share({text: msg}).catch(() => {}); else copy(msg, $('#qshare', m), 'Скопировано'); };
   const draw = () => {
     if (!window.QRCode) return setTimeout(draw, 200);
     new QRCode($('#qrbox', m), {text: url, width: 480, height: 480, colorDark: '#1B2A4A', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M});
@@ -560,12 +580,12 @@ function renderResults(){
 function kitchenBlock(k){
   if (!k) return '';
   const sum = a => a.reduce((s, x) => s + (Number(x.sum) || 0), 0);
-  let h = '<div class="orn"><i></i></div><section class="card kit"><h2>Кухня после дегустации</h2><p class="sub">Со слов шефа, внесено управляющим' + (k.updated ? ' · ' + esc(k.updated) : '') + '</p><div class="cols"><div>';
+  let h = '<div class="orn"><i></i></div><section class="card kit"><h2>После дегустации</h2><p class="sub">Со слов шефа, внесено управляющим' + (k.updated ? ' · ' + esc(k.updated) : '') + '</p><div class="cols"><div>';
   h += '<h4>Рабочее место</h4>' + (k.workplace ? '<span class="st ' + (k.workplace === 'Чисто' ? 'ok' : 'bad') + '">' + esc(k.workplace) + '</span>' : '<span class="muted">не отмечено</span>');
   if (k.comment) h += '<p>' + esc(k.comment) + '</p>';
   if (k.photos && k.photos.length) h += '<div class="gal">' + k.photos.map((u, i) => photoTag(u, (k.photoIds || [])[i], '', 'Рабочее место')).join('') + '</div>';
   h += '</div><div><h4>Заявка на продукты</h4>';
-  if (k.request && k.request.length) h += '<table><thead><tr><th>Продукт</th><th class="r">Кол-во</th><th class="r">Сумма</th></tr></thead><tbody>' + k.request.map(x => '<tr><td>' + esc(x.name) + '</td><td class="r">' + esc(x.qty || '') + ' ' + esc(x.unit || '') + '</td><td class="r">' + (x.sum ? money(x.sum) : '–') + '</td></tr>').join('') + '</tbody><tfoot><tr><td>Итого</td><td></td><td class="r">' + money(sum(k.request)) + '</td></tr></tfoot></table>';
+  if (k.request && k.request.length) h += '<table><thead><tr><th>Продукт</th><th class="r">Кол-во</th><th class="r">Сумма</th></tr></thead><tbody>' + k.request.map(x => '<tr><td>' + esc(x.name) + '</td><td class="r">' + esc(x.qty || '') + ' ' + esc(x.unit || '') + '</td><td class="r">' + (x.sum ? money(x.sum) : '–') + '</td></tr>').join('') + '</tbody>' + (sum(k.request) ? '<tfoot><tr><td>Итого</td><td></td><td class="r">' + money(sum(k.request)) + '</td></tr></tfoot>' : '') + '</table>';
   else h += '<p class="muted">не внесена</p>';
   h += '</div><div><h4>Остатки</h4>';
   if (k.leftovers && k.leftovers.length){
@@ -574,19 +594,6 @@ function kitchenBlock(k){
     h += '<p class="sub" style="margin-top:10px">В работу: ' + u.length + ' поз. · ' + money(sum(u)) + '<br>Списание: ' + w.length + ' поз. · ' + money(sum(w)) + '</p>';
   } else h += '<p class="muted">не внесены</p>';
   return h + '</div></div></section>';
-}
-
-/* ---------------- управление ---------------- */
-async function viewAdmin(){
-  loading();
-  let r; try { r = await apiGet({action:'catalog'}); } catch(e){ return state('Нет связи', 'Обновите страницу.'); }
-  app.className = 'narrow';
-  let h = '<header class="hero"><p class="brand"><span>Дегустации</span><a href="#/">Все дегустации</a></p><h1>Управление</h1><div class="row"><a class="btn pri" href="#/edit">Новая дегустация</a></div></header>';
-  h += '<div class="card adm">' + r.tastings.map(t => '<div class="it"><div><b>' + esc(t.title) + '</b><div class="sub" style="margin:0">' + esc(projOf(t)) + ' · ' + esc(t.id) + ' · ' + esc(t.date) + ' · ' + (t.active ? 'анкета открыта' : 'анкета закрыта') + ' · ' + t.guests + ' уч.</div></div>' +
-    '<div class="row"><a class="btn sm" href="#/edit/' + esc(t.id) + '">Изменить</a><a class="btn sm" href="#/kitchen/' + esc(t.id) + '">Кухня после</a><button class="btn sm" data-open="' + esc(t.id) + '" data-to="' + (t.active ? '0' : '1') + '">' + (t.active ? 'Закрыть анкету' : 'Открыть анкету') + '</button><button class="btn sm" data-qr="' + esc(t.id) + '">QR</button></div></div>').join('') + (r.tastings.length ? '' : '<p class="muted">Пока пусто.</p>') + '</div>';
-  app.innerHTML = h;
-  $$('[data-qr]').forEach(b => b.onclick = () => showQR(b.dataset.qr));
-  $$('[data-open]').forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = 'Сохраняем'; await apiPost({action:'setOpen', pin: pin(), t: b.dataset.open, open: b.dataset.to === '1'}).catch(() => {}); viewAdmin(); });
 }
 
 function resizeImage(file, max){
@@ -603,98 +610,155 @@ async function uploadPhoto(file, name){
 }
 function pickFile(multiple){ return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; if (multiple) i.multiple = true; i.onchange = () => res(Array.from(i.files || [])); i.click(); }); }
 
-/* редактор дегустации */
-let E = null;
+/* ---------------- создание и правка дегустации ---------------- */
+let W = null;
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function todayText(){ const d = new Date(); return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + ', 15:00'; }
+function presetOf(role){ return ROLE_PRESETS.find(p => p.role === role); }
+function autoTitle(P){ if (P.length === 1){ const pr = presetOf(P[0].role); return pr ? 'Дегустация от ' + pr.gen : 'Дегустация'; } return 'Дегустация'; }
+function autoGreeting(T, P, D){
+  const parts = P.map(p => { const n = D.filter(d => d.pi === P.indexOf(p) && d.name).length; return (p.role + ' ' + p.name).trim() + (n ? ' представит ' + n + ' ' + plural(n, 'позицию', 'позиции', 'позиций') : ''); });
+  return 'Добрый день, уважаемый коллега.\nПриглашаем вас на дегустацию' + (T.project ? ' в ' + T.project : '') + (T.date ? ' – ' + T.date : '') + '. ' + (parts.length ? parts.join(', ') + '. ' : '') + 'Просим оценить каждую позицию и оставить пару слов от себя – ваше мнение для нас важно.';
+}
+function plural(n, a, b, c){ const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20) ? b : c); }
+
 async function viewEditor(id){
   loading();
   let T = null, cat = [];
   try { cat = (await apiGet({action:'catalog'})).tastings || []; if (id) T = await apiGet({t: id}); } catch(e){ return state('Нет связи', 'Обновите страницу.'); }
   if (id && (!T || T.error)) return state('Не найдено', id);
+  const projects = []; cat.forEach(t => { if (t.project && projects.indexOf(t.project) < 0) projects.push(t.project); });
   if (!T){
     const nums = cat.map(t => Number((t.id.match(/(\d+)$/) || [])[1]) || 0);
-    const nid = 'dio-' + String(Math.max(0, ...nums) + 1).padStart(2, '0');
-    T = {id: nid, date: '', title: 'Дегустация от шеф-повара', signature: 'Шеф-повар ', open: true, project: (cat[0] && cat[0].project) || '', participants: [],
-      greeting: 'Добрый день, уважаемый коллега.\nПриглашаем вас на дегустацию – сегодня в 15:30. Мы представим вам … Просим оценить каждое блюдо и оставить пару слов от себя – ваше мнение для нас важно.',
-      blocks: [{name: 'Кухня', signature: 'Шеф-повар ', criteria: KC.slice()}], dishes: [], isNew: true};
+    W = {isNew: true, step: 0, projects, greetEdited: false, titleEdited: false,
+      T: {id: 'dg-' + String(Math.max(0, ...nums) + 1).padStart(2, '0'), project: (cat[0] && cat[0].project) || '', date: todayText(), title: '', greeting: '', chefPhoto: '', chefPhotoId: '', open: true},
+      P: [{role: 'Шеф-повар', name: ''}], D: [], parts: [], products: ''};
+  } else {
+    const P = (T.blocks || []).map(b => { const pr = ROLE_PRESETS.find(x => (b.signature || '').indexOf(x.role) === 0 || x.block === b.name); const sig = b.signature || '';
+      return pr ? {role: pr.role, name: sig.indexOf(pr.role) === 0 ? sig.slice(pr.role.length).trim() : sig, block: b.name, criteria: b.criteria} : {role: b.name || 'Другое', name: sig, block: b.name, criteria: b.criteria}; });
+    if (!P.length) P.push({role: 'Шеф-повар', name: (T.signature || '').replace(/^Шеф-повар\s*/, '')});
+    const D = T.dishes.map(d => ({pi: Math.max(0, (T.blocks || []).findIndex(b => b.name === d.block)), name: d.name || '', desc: d.desc || '', allergens: d.allergens || '', section: d.section || '', photo: d.photoId || (d.photo && d.photo.indexOf('thumbnail') < 0 ? d.photo : ''), _ph: d.photo || ''}));
+    W = {isNew: false, step: 0, projects, greetEdited: true, titleEdited: true,
+      T: {id: T.id, project: T.project || '', date: T.date || '', title: T.title || '', greeting: T.greeting || '', chefPhoto: T.chefPhoto || '', chefPhotoId: '', open: T.open},
+      P, D, parts: (T.participants || []).map(p => ({name: p.name, role: p.role || ''})), products: ''};
   }
-  E = {T: JSON.parse(JSON.stringify(T)), isNew: !!T.isNew, projects: []};
-  cat.forEach(t => { if (t.project && E.projects.indexOf(t.project) < 0) E.projects.push(t.project); });
-  E.T.participants = E.T.participants || [];
-  E.T.dishes.forEach(d => { d._ph = d.photo || ''; d.photo = d.photoId || (d.photo && d.photo.indexOf('thumbnail') < 0 ? d.photo : '') || ''; });
-  renderEditor();
+  renderWizard();
 }
-function renderEditor(){
-  const T = E.T; app.className = 'narrow';
-  let h = '<header class="hero"><p class="brand"><span>Дегустации</span><a href="#/admin">Управление</a></p><h1>' + (E.isNew ? 'Новая дегустация' : 'Изменить ' + esc(T.id)) + '</h1></header>';
-  h += '<div class="card"><div class="grid2"><div class="f"><label class="l">ID</label><input type="text" id="e-id" value="' + esc(T.id) + '"' + (E.isNew ? '' : ' disabled') + '></div><div class="f"><label class="l">Дата и время</label><input type="text" id="e-date" placeholder="1 октября 2026, 15:30" value="' + esc(T.date) + '"></div></div>';
-  h += '<div class="f"><label class="l">Проект – заведение</label><input type="text" id="e-proj" list="e-projs" placeholder="DIO Grand Cafe" value="' + esc(T.project || '') + '"><datalist id="e-projs">' + E.projects.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist></div>';
-  h += '<div class="f"><label class="l">Название</label><input type="text" id="e-title" value="' + esc(T.title) + '"></div>';
-  h += '<div class="f"><label class="l">Приветствие</label><textarea id="e-greet" rows="5">' + esc(T.greeting) + '</textarea></div>';
-  h += '<div class="f"><label class="l">Подпись под приветствием</label><input type="text" id="e-sign" value="' + esc(T.signature) + '"></div>';
-  h += '<div class="f"><label class="l">Фото шефа</label><div class="row">' + (T.chefPhoto ? '<img class="thumb" src="' + esc(T.chefPhoto) + '" style="width:56px;height:56px;border-radius:50%;object-fit:cover" onerror="this.remove()">' : '') + '<button class="btn sm" id="e-chef">' + (T.chefPhoto ? 'Заменить' : 'Загрузить') + '</button><span class="sub" id="e-chef-st" style="margin:0"></span></div></div></div>';
-  h += '<div class="card"><h3>Участники</h3><p class="sub">Кто оценивает – в анкете человек выберет себя из списка. Можно оставить пустым</p><div class="lines" id="parts">' +
-    T.participants.map((p, i) => '<div class="ln" data-i="' + i + '" style="grid-template-columns:1fr 130px 30px"><input type="text" data-pk="name" placeholder="Имя" value="' + esc(p.name) + '"><select data-pk="role">' + ['', ...ROLES].map(r => '<option value="' + r + '"' + (r === (p.role || '') ? ' selected' : '') + '>' + (r || 'Роль') + '</option>').join('') + '</select><button class="x" data-delpart="' + i + '">×</button></div>').join('') +
-    '</div><button class="btn sm" id="add-part">+ Участник</button></div>';
-  h += '<div class="card"><h3>Блоки</h3><p class="sub">Кухня, бар – у каждого своя подпись и критерии</p>';
-  T.blocks.forEach((b, i) => {
-    h += '<div class="pos-ed" data-b="' + i + '"><div class="hd"><span>Блок ' + (i + 1) + '</span><button class="x" data-delb="' + i + '" title="Удалить">×</button></div>' +
-      '<div class="grid2"><div class="f"><label class="l">Название</label><input type="text" data-bf="name" value="' + esc(b.name) + '"></div><div class="f"><label class="l">Подпись</label><input type="text" data-bf="signature" value="' + esc(b.signature) + '"></div></div>' +
-      '<div class="f" style="margin:0"><label class="l">Критерии через запятую</label><input type="text" data-bf="criteria" value="' + esc((b.criteria || []).join(', ')) + '"></div></div>';
-  });
-  h += '<div class="row"><button class="btn sm" id="add-k">+ Кухня</button><button class="btn sm" id="add-b">+ Бар</button></div></div>';
-  h += '<div class="card"><h3>Позиции</h3><p class="sub">В порядке подачи</p>';
-  T.dishes.forEach((d, i) => {
-    h += '<div class="pos-ed" data-d="' + i + '"><div class="hd"><span>№ ' + (i + 1) + '</span><span class="row"><button class="x" data-up="' + i + '" title="Выше">↑</button><button class="x" data-down="' + i + '" title="Ниже">↓</button><button class="x" data-deld="' + i + '" title="Удалить">×</button></span></div>' +
-      '<div class="grid2"><div class="f"><label class="l">Блок</label><select data-df="block">' + T.blocks.map(b => '<option' + (b.name === d.block ? ' selected' : '') + '>' + esc(b.name) + '</option>').join('') + '</select></div><div class="f"><label class="l">Раздел (необязательно)</label><input type="text" data-df="section" placeholder="Тёплый десерт" value="' + esc(d.section || '') + '"></div></div>' +
-      '<div class="f"><label class="l">Название</label><input type="text" data-df="name" value="' + esc(d.name || '') + '"></div>' +
-      '<div class="f"><label class="l">Описание, состав</label><textarea data-df="desc" rows="2">' + esc(d.desc || '') + '</textarea></div>' +
-      '<div class="f"><label class="l">Аллергены</label><input type="text" data-df="allergens" value="' + esc(d.allergens || '') + '"></div>' +
-      '<div class="row">' + (d._ph ? '<img class="thumb" src="' + esc(d._ph) + '" onerror="this.remove()">' : '') + '<button class="btn sm" data-ph="' + i + '">' + (d._ph ? 'Заменить фото' : 'Фото блюда') + '</button><span class="sub" data-phst="' + i + '" style="margin:0"></span></div></div>';
-  });
-  h += '<button class="btn sm" id="add-d">+ Позиция</button></div>';
-  h += '<button class="btn pri wide" id="e-save" style="margin-top:22px">Сохранить</button><p class="err" id="err"></p>';
+const STEPS = ['Кто представляет', 'Проект и дата', 'Позиции', 'Участники', 'Продукты'];
+function renderWizard(){
+  const {T, P, D} = W; app.className = 'narrow';
+  let h = '<header class="hero"><p class="brand"><span>' + esc(T.project || 'Дегустации') + '</span><a href="#/">Все дегустации</a></p><h1>' + (W.isNew ? 'Новая дегустация' : 'Изменить дегустацию') + '</h1>' +
+    '<p class="ppl" style="margin:0">Шаг ' + (W.step + 1) + ' из ' + STEPS.length + ' – ' + STEPS[W.step] + '</p><div class="track" style="margin-top:10px;background:rgba(255,255,255,.15)"><span class="fill" style="width:' + ((W.step + 1) / STEPS.length * 100) + '%"></span></div></header>';
+  h += '<div class="card">';
+  if (W.step === 0){
+    h += '<h3>Кто представляет</h3><p class="sub">Можно несколько человек – у каждого свой блок позиций и свои критерии</p>';
+    P.forEach((p, i) => {
+      const other = !presetOf(p.role);
+      h += '<div class="pos-ed" data-p="' + i + '"><div class="hd"><span>' + (i + 1) + '</span>' + (P.length > 1 ? '<button class="x" data-delp="' + i + '">×</button>' : '') + '</div>' +
+        '<div class="chips" data-prole="' + i + '" style="margin-bottom:10px">' + ROLE_PRESETS.map(r => '<button type="button" data-v="' + r.role + '"' + (p.role === r.role ? ' class="on"' : '') + '>' + r.role + '</button>').join('') + '<button type="button" data-v="__other"' + (other ? ' class="on"' : '') + '>Другое</button></div>' +
+        (other ? '<div class="f"><label class="l">Роль</label><input type="text" data-pf="role" placeholder="Например, кондитер" value="' + esc(p.role === 'Другое' ? '' : p.role) + '"></div>' : '') +
+        '<div class="f" style="margin:0"><label class="l">Имя</label><input type="text" data-pf="name" placeholder="Имя и фамилия" value="' + esc(p.name) + '"></div></div>';
+    });
+    h += '<div class="row"><button class="btn sm" id="add-p">+ Ещё человек</button></div>';
+    h += '<div class="f" style="margin-top:16px"><label class="l">Фото для шапки анкеты – по желанию</label><div class="row">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" style="width:56px;height:56px;border-radius:50%;object-fit:cover" onerror="this.remove()">' : '') + '<button class="btn sm" id="w-chef">' + (T.chefPhoto ? 'Заменить' : 'Загрузить') + '</button><span class="sub" id="w-chef-st" style="margin:0"></span></div></div>';
+  }
+  if (W.step === 1){
+    h += '<div class="f"><label class="l">Проект – заведение</label><input type="text" id="w-proj" list="w-projs" placeholder="DIO Grand Cafe" value="' + esc(T.project) + '"><datalist id="w-projs">' + W.projects.map(p => '<option value="' + esc(p) + '">').join('') + '</datalist></div>';
+    h += '<div class="f"><label class="l">Дата и время</label><input type="text" id="w-date" value="' + esc(T.date) + '"></div>';
+    h += '<div class="f"><label class="l">Название</label><input type="text" id="w-title" value="' + esc(T.title || autoTitle(P)) + '"></div>';
+  }
+  if (W.step === 2){
+    P.forEach((p, pi) => {
+      const pr = presetOf(p.role);
+      h += '<h3 style="margin-top:' + (pi ? '22px' : '0') + '">' + esc((p.role + ' ' + p.name).trim()) + '</h3><p class="sub">Позиции в порядке подачи</p>';
+      D.forEach((d, i) => { if (d.pi !== pi) return;
+        h += '<div class="pos-ed" data-d="' + i + '"><div class="hd"><span>' + esc(pr ? pr.item : 'Позиция') + ' ' + (D.filter(x => x.pi === pi).indexOf(d) + 1) + '</span><span class="row"><button class="x" data-up="' + i + '">↑</button><button class="x" data-down="' + i + '">↓</button><button class="x" data-deld="' + i + '">×</button></span></div>' +
+          '<div class="f"><label class="l">Название</label><input type="text" data-df="name" value="' + esc(d.name) + '"></div>' +
+          '<div class="f"><label class="l">Описание, состав</label><textarea data-df="desc" rows="2">' + esc(d.desc) + '</textarea></div>' +
+          '<div class="f"><label class="l">Аллергены – по желанию</label><input type="text" data-df="allergens" value="' + esc(d.allergens) + '"></div>' +
+          '<div class="row">' + (d._ph ? '<img src="' + esc(d._ph) + '" style="width:56px;height:56px;border-radius:10px;object-fit:cover" onerror="this.remove()">' : '') + '<button class="btn sm" data-ph="' + i + '">' + (d._ph ? 'Заменить фото' : 'Фото – по желанию') + '</button><span class="sub" data-phst="' + i + '" style="margin:0"></span></div></div>';
+      });
+      h += '<button class="btn sm" data-addd="' + pi + '">+ Позиция</button>';
+    });
+  }
+  if (W.step === 3){
+    h += '<h3>Участники</h3><p class="sub">Кто будет оценивать. В анкете человек нажмёт своё имя. Можно пропустить – тогда участники впишут имя сами</p><div class="lines" id="parts">' +
+      W.parts.map((p, i) => '<div class="ln" data-i="' + i + '" style="grid-template-columns:1fr 130px 30px"><input type="text" data-pk="name" placeholder="Имя" value="' + esc(p.name) + '"><select data-pk="role">' + ['', ...ROLES].map(r => '<option value="' + r + '"' + (r === (p.role || '') ? ' selected' : '') + '>' + (r || 'Роль') + '</option>').join('') + '</select><button class="x" data-delpart="' + i + '">×</button></div>').join('') +
+      '</div><button class="btn sm" id="add-part">+ Участник</button>';
+  }
+  if (W.step === 4){
+    h += '<h3>Какие продукты задействованы</h3><p class="sub">Свободным текстом, каждый продукт с новой строки – попадёт в итоги в блок «После дегустации». Можно пропустить</p><textarea id="w-prod" rows="7" placeholder="Говяжья вырезка – 2 кг&#10;Фуа-гра – 0,5 кг&#10;…">' + esc(W.products) + '</textarea>';
+    h += '<div class="f" style="margin-top:16px"><label class="l">Приветствие в анкете</label><textarea id="w-greet" rows="5">' + esc(W.greetEdited ? T.greeting : autoGreeting(T, P, D)) + '</textarea></div>';
+  }
+  h += '</div><div class="row" style="margin-top:18px;justify-content:space-between">' + (W.step ? '<button class="btn" id="w-back">Назад</button>' : '<a class="btn" href="#/">Отмена</a>') +
+    (W.step < STEPS.length - 1 ? '<button class="btn pri" id="w-next">Далее</button>' : '<button class="btn pri" id="w-save">' + (W.isNew ? 'Готово – получить ссылку' : 'Сохранить') + '</button>') + '</div><p class="err" id="err"></p>';
   app.innerHTML = h;
-  const sync = () => {
-    T.project = $('#e-proj').value.trim();
-    T.participants = $$('#parts .ln').map(ln => ({name: $('[data-pk=name]', ln).value.trim(), role: $('[data-pk=role]', ln).value}));
-    T.id = $('#e-id').value.trim(); T.date = $('#e-date').value.trim(); T.title = $('#e-title').value.trim(); T.greeting = $('#e-greet').value; T.signature = $('#e-sign').value.trim();
-    $$('[data-b]').forEach(el => { const b = T.blocks[el.dataset.b]; const old = b.name; b.name = $('[data-bf=name]', el).value.trim(); b.signature = $('[data-bf=signature]', el).value.trim(); b.criteria = $('[data-bf=criteria]', el).value.split(',').map(s => s.trim()).filter(Boolean); if (old !== b.name) T.dishes.forEach(d => { if (d.block === old) d.block = b.name; }); });
-    $$('[data-d]').forEach(el => { const d = T.dishes[el.dataset.d]; ['block','section','name','desc','allergens'].forEach(k => d[k] = $('[data-df=' + k + ']', el).value.trim()); });
+  wireWizard();
+}
+function syncWizard(){
+  const {T, P, D} = W;
+  if (W.step === 0) $$('[data-p]').forEach(el => { const p = P[el.dataset.p]; p.name = $('[data-pf=name]', el).value.trim(); const r = $('[data-pf=role]', el); if (r) p.role = r.value.trim() || 'Другое'; });
+  if (W.step === 1){ T.project = $('#w-proj').value.trim(); T.date = $('#w-date').value.trim(); const t = $('#w-title').value.trim(); if (t !== autoTitle(P)) W.titleEdited = true; T.title = t; }
+  if (W.step === 2) $$('[data-d]').forEach(el => { const d = D[el.dataset.d]; ['name','desc','allergens'].forEach(k => d[k] = $('[data-df=' + k + ']', el).value.trim()); });
+  if (W.step === 3) W.parts = $$('#parts .ln').map(ln => ({name: $('[data-pk=name]', ln).value.trim(), role: $('[data-pk=role]', ln).value}));
+  if (W.step === 4){ W.products = $('#w-prod').value; const g = $('#w-greet').value; if (g !== autoGreeting(T, P, D)) W.greetEdited = true; T.greeting = g; }
+}
+function wireWizard(){
+  const {T, P, D} = W; const err = $('#err');
+  const go = s => { syncWizard(); W.step = s; renderWizard(); window.scrollTo(0, 0); };
+  if ($('#w-back')) $('#w-back').onclick = () => go(W.step - 1);
+  if ($('#w-next')) $('#w-next').onclick = () => {
+    syncWizard();
+    if (W.step === 0 && P.some(p => !p.name)) { err.textContent = 'Впишите имя каждого, кто представляет.'; return; }
+    if (W.step === 1 && !T.project) { err.textContent = 'Укажите проект – заведение.'; return; }
+    if (W.step === 2 && !D.some(d => d.name)) { err.textContent = 'Добавьте хотя бы одну позицию с названием.'; return; }
+    if (W.step === 2) { const empty = P.findIndex((p, pi) => !D.some(d => d.pi === pi && d.name)); if (empty >= 0) { err.textContent = 'У «' + (P[empty].role + ' ' + P[empty].name).trim() + '» нет позиций – добавьте или удалите этого человека на шаге 1.'; return; } }
+    if (W.step === 0 && !W.titleEdited) T.title = autoTitle(P);
+    W.step++; renderWizard(); window.scrollTo(0, 0);
   };
-  app.onchange = e => { if (e.target.dataset.bf === 'name') { sync(); renderEditor(); } };
-  $('#add-part').onclick = () => { sync(); T.participants.push({name: '', role: ''}); renderEditor(); setTimeout(() => { const l = $$('#parts [data-pk=name]'); l.length && l[l.length - 1].focus(); }, 0); };
-  $$('[data-delpart]').forEach(b => b.onclick = () => { sync(); T.participants.splice(Number(b.dataset.delpart), 1); renderEditor(); });
-  $('#add-k').onclick = () => { sync(); T.blocks.push({name: 'Кухня', signature: 'Шеф-повар ', criteria: KC.slice()}); renderEditor(); };
-  $('#add-b').onclick = () => { sync(); T.blocks.push({name: 'Бар', signature: 'Шеф-бармен ', criteria: BC.slice()}); renderEditor(); };
-  $('#add-d').onclick = () => { sync(); T.dishes.push({block: (T.blocks[T.blocks.length - 1] || {}).name || '', section: '', name: '', desc: '', allergens: '', photo: '', _ph: ''}); renderEditor(); };
-  $$('[data-delb]').forEach(b => b.onclick = () => { sync(); T.blocks.splice(Number(b.dataset.delb), 1); renderEditor(); });
-  $$('[data-deld]').forEach(b => b.onclick = () => { sync(); if (confirm('Удалить позицию?')) { T.dishes.splice(Number(b.dataset.deld), 1); renderEditor(); } });
-  $$('[data-up]').forEach(b => b.onclick = () => { sync(); const i = Number(b.dataset.up); if (i > 0) { [T.dishes[i - 1], T.dishes[i]] = [T.dishes[i], T.dishes[i - 1]]; renderEditor(); } });
-  $$('[data-down]').forEach(b => b.onclick = () => { sync(); const i = Number(b.dataset.down); if (i < T.dishes.length - 1) { [T.dishes[i + 1], T.dishes[i]] = [T.dishes[i], T.dishes[i + 1]]; renderEditor(); } });
-  $$('[data-ph]').forEach(b => b.onclick = async () => {
-    sync(); const i = Number(b.dataset.ph); const [f] = await pickFile(false); if (!f) return;
+  $$('[data-prole] button').forEach(b => b.onclick = () => { syncWizard(); const p = P[b.parentNode.dataset.prole]; p.role = b.dataset.v === '__other' ? 'Другое' : b.dataset.v; renderWizard(); });
+  if ($('#add-p')) $('#add-p').onclick = () => { syncWizard(); const used = P.map(p => p.role); const nx = ROLE_PRESETS.find(r => used.indexOf(r.role) < 0); P.push({role: nx ? nx.role : 'Другое', name: ''}); renderWizard(); };
+  $$('[data-delp]').forEach(b => b.onclick = () => { syncWizard(); const i = Number(b.dataset.delp); P.splice(i, 1); W.D = D.filter(d => d.pi !== i).map(d => Object.assign(d, {pi: d.pi > i ? d.pi - 1 : d.pi})); renderWizard(); });
+  if ($('#w-chef')) $('#w-chef').onclick = async () => { syncWizard(); const [f] = await pickFile(false); if (!f) return; $('#w-chef-st').textContent = 'Загружаем';
+    try { const r = await uploadPhoto(f, T.id + '-chef'); T.chefPhotoId = r.id; T.chefPhoto = URL.createObjectURL(f); renderWizard(); } catch(e){ $('#w-chef-st').textContent = 'Не загрузилось'; } };
+  $$('[data-addd]').forEach(b => b.onclick = () => { syncWizard(); const pi = Number(b.dataset.addd); let at = -1; D.forEach((d, i) => { if (d.pi === pi) at = i; });
+    const nd = {pi, name: '', desc: '', allergens: '', section: '', photo: '', _ph: ''}; if (at < 0) D.push(nd); else D.splice(at + 1, 0, nd); renderWizard();
+    setTimeout(() => { const els = $$('[data-d]').filter(el => D[el.dataset.d] === nd); if (els[0]) $('[data-df=name]', els[0]).focus(); }, 0); });
+  $$('[data-deld]').forEach(b => b.onclick = () => { syncWizard(); D.splice(Number(b.dataset.deld), 1); renderWizard(); });
+  const move = (i, dir) => { let j = i + dir; while (j >= 0 && j < D.length && D[j].pi !== D[i].pi) j += dir; if (j >= 0 && j < D.length) { [D[i], D[j]] = [D[j], D[i]]; } };
+  $$('[data-up]').forEach(b => b.onclick = () => { syncWizard(); move(Number(b.dataset.up), -1); renderWizard(); });
+  $$('[data-down]').forEach(b => b.onclick = () => { syncWizard(); move(Number(b.dataset.down), 1); renderWizard(); });
+  $$('[data-ph]').forEach(b => b.onclick = async () => { syncWizard(); const i = Number(b.dataset.ph); const [f] = await pickFile(false); if (!f) return;
     const st = $('[data-phst="' + i + '"]'); st.textContent = 'Загружаем'; b.disabled = true;
-    try { const r = await uploadPhoto(f, T.id + '-' + (i + 1)); T.dishes[i].photo = r.id; T.dishes[i]._ph = URL.createObjectURL(f); renderEditor(); }
-    catch(e){ st.textContent = 'Не загрузилось'; b.disabled = false; }
-  });
-  $('#e-chef').onclick = async () => {
-    sync(); const [f] = await pickFile(false); if (!f) return; $('#e-chef-st').textContent = 'Загружаем';
-    try { const r = await uploadPhoto(f, T.id + '-chef'); T.chefPhotoId = r.id; T.chefPhoto = URL.createObjectURL(f); renderEditor(); }
-    catch(e){ $('#e-chef-st').textContent = 'Не загрузилось'; }
-  };
-  $('#e-save').onclick = async () => {
-    sync(); const err = $('#err');
-    if (!/^[\w-]{2,30}$/.test(T.id)) { err.textContent = 'ID – латиница, цифры и дефис, например dio-02.'; return; }
-    if (!T.project) { err.textContent = 'Укажите проект – заведение.'; return; }
-    if (!T.blocks.length) { err.textContent = 'Добавьте хотя бы один блок.'; return; }
-    const ds = T.dishes.filter(d => d.name);
-    if (!ds.length) { err.textContent = 'Добавьте хотя бы одну позицию с названием.'; return; }
-    const btn = $('#e-save'); btn.disabled = true; btn.textContent = 'Сохраняем'; err.textContent = '';
-    const data = {id: T.id, project: T.project, participants: T.participants.filter(p => p.name), date: T.date, title: T.title, greeting: T.greeting, signature: T.signature, active: E.isNew ? true : !!T.open,
-      chefPhoto: T.chefPhotoId || '', blocks: T.blocks, dishes: ds.map((d, i) => ({n: i + 1, block: d.block, section: d.section, name: d.name, desc: d.desc, allergens: d.allergens, photo: d.photo || ''}))};
-    try { const r = await apiPost({action:'create', pin: pin(), data}); if (!r.ok) throw new Error(r.error); location.hash = '#/admin'; if (E.isNew) setTimeout(() => showQR(T.id), 600); }
-    catch(e){ btn.disabled = false; btn.textContent = 'Сохранить'; err.textContent = 'Не сохранилось: ' + e.message; }
-  };
+    try { const r = await uploadPhoto(f, T.id + '-' + (i + 1)); D[i].photo = r.id; D[i]._ph = URL.createObjectURL(f); renderWizard(); } catch(e){ st.textContent = 'Не загрузилось'; b.disabled = false; } });
+  if ($('#add-part')) $('#add-part').onclick = () => { syncWizard(); W.parts.push({name: '', role: ''}); renderWizard(); setTimeout(() => { const l = $$('#parts [data-pk=name]'); l.length && l[l.length - 1].focus(); }, 0); };
+  $$('[data-delpart]').forEach(b => b.onclick = () => { syncWizard(); W.parts.splice(Number(b.dataset.delpart), 1); renderWizard(); });
+  if ($('#w-save')) $('#w-save').onclick = saveWizard;
+}
+async function saveWizard(){
+  syncWizard();
+  const {T, P, D} = W; const err = $('#err'), btn = $('#w-save');
+  const blocks = P.map(p => { const pr = presetOf(p.role); const name = pr ? pr.block : (p.block || p.role);
+    return {name, signature: (p.role + ' ' + p.name).trim(), criteria: p.criteria && p.criteria.length ? p.criteria : (pr ? pr.criteria : KC)}; });
+  const dishes = D.filter(d => d.name).sort((a, b) => a.pi - b.pi).map((d, i) => { const pr = presetOf(P[d.pi].role);
+    return {n: i + 1, block: blocks[d.pi].name, section: d.section || '', name: d.name, desc: d.desc, allergens: d.allergens, photo: d.photo || ''}; });
+  const data = {id: T.id, project: T.project, participants: W.parts.filter(p => p.name), date: T.date, title: T.title || autoTitle(P),
+    greeting: T.greeting || autoGreeting(T, P, D), signature: blocks[0].signature, active: W.isNew ? true : !!T.open, chefPhoto: T.chefPhotoId || '', blocks, dishes};
+  btn.disabled = true; btn.textContent = 'Сохраняем'; err.textContent = '';
+  try {
+    const r = await apiPost({action:'create', pin: pin(), data}); if (!r.ok) throw new Error(r.error);
+    const lines = W.products.split('\n').map(s => s.trim()).filter(Boolean);
+    if (lines.length) await apiPost({action:'kitchen', pin: pin(), t: T.id, data: {workplace: '', comment: '', photoIds: [], request: lines.map(name => ({name})), leftovers: []}}).catch(() => {});
+    doneScreen(data);
+  } catch(e){ btn.disabled = false; btn.textContent = W.isNew ? 'Готово – получить ссылку' : 'Сохранить'; err.textContent = 'Не сохранилось: ' + e.message + '. Проверьте интернет и нажмите ещё раз.'; }
+}
+function doneScreen(data){
+  const url = linkForm(data.id);
+  app.className = 'narrow'; window.scrollTo(0, 0);
+  app.innerHTML = '<header class="hero"><p class="brand"><span>' + esc(data.project) + '</span><a href="#/">Все дегустации</a></p><h1>' + (W.isNew ? 'Анкета готова' : 'Сохранено') + '</h1><p class="ppl" style="margin:0">' + esc(data.title) + ' · ' + esc(data.date) + ' · ' + data.dishes.length + ' ' + plural(data.dishes.length, 'позиция', 'позиции', 'позиций') + '</p></header>' +
+    '<div class="card" style="text-align:center"><p class="sub">Отправьте ссылку участникам – они откроют анкету в браузере телефона, ничего устанавливать не нужно</p><div class="row" style="justify-content:center;margin-top:10px"><button class="btn pri" id="d-link">Ссылка, QR и приглашение</button><a class="btn navy" href="#/r/' + esc(data.id) + '">Итоги</a><a class="btn" href="#/">Все дегустации</a></div></div>';
+  $('#d-link').onclick = () => showQR(data.id, data);
+  showQR(data.id, data);
 }
 
 /* кухня после дегустации */
@@ -714,7 +778,7 @@ function renderKitchen(){
   app.className = 'narrow';
   const units = ['кг','г','л','шт','уп'];
   const uSel = (v, k) => '<select data-k="' + k + '">' + units.map(u => '<option' + (u === v ? ' selected' : '') + '>' + u + '</option>').join('') + '</select>';
-  let h = '<header class="hero"><p class="brand"><span>Дегустации</span><a href="#/admin">Управление</a></p><h1>Кухня после дегустации</h1><p class="ppl" style="margin:0">' + esc(K.title) + ' · ' + esc(K.date) + '</p></header>';
+  let h = '<header class="hero"><p class="brand"><span>Дегустации</span><a href="#/">Все дегустации</a></p><h1>После дегустации</h1><p class="ppl" style="margin:0">' + esc(K.title) + ' · ' + esc(K.date) + '</p></header>';
   h += '<div class="card"><h3>Рабочее место</h3><div class="chips" data-wp style="margin:12px 0">' + ['Чисто','Есть замечания'].map(v => '<button type="button" data-v="' + v + '"' + (K.workplace === v ? ' class="on"' : '') + '>' + v + '</button>').join('') + '</div>';
   h += '<div class="f"><label class="l">Комментарий</label><textarea id="k-cm" rows="3">' + esc(K.comment) + '</textarea></div>';
   h += '<div class="row">' + K.photos.map((p, i) => '<span style="position:relative"><img class="thumb" src="' + esc(p.url) + '" style="width:64px;height:64px;border-radius:10px;object-fit:cover" onerror="this.style.opacity=.3"><button class="x" data-delp="' + i + '" style="position:absolute;top:-8px;right:-6px">×</button></span>').join('') + '<button class="btn sm" id="k-ph">+ Фото</button><span class="sub" id="k-phst" style="margin:0"></span></div></div>';
