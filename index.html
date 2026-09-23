@@ -255,7 +255,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '6 от 23.09.2026';
+const APP_VERSION = '7 от 23.09.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -413,6 +413,12 @@ async function viewTasting(id){
   let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span><a href="#/">Все дегустации</a></p><h1>' + esc(T.title || 'Дегустация') + '</h1><p class="date">' + esc(T.date || '') + '</p>' +
     '<p class="ppl" style="margin:0">' + esc(who.join(' · ')) + '</p>' +
     '<p style="margin:12px 0 0"><span class="pill ' + (T.open ? 'open">Анкета открыта' : 'done">Анкета закрыта') + '</span></p></header>';
+  let allv = []; Object.values(last).forEach(a => { if ((setOf(T).excluded || []).indexOf(a['Гость']) >= 0 || extraOf(a).skip) return; const d = T.dishes.find(x => Number(x.n) === Number(a['№'])); if (!d) return; critOf(T, d).forEach(c => { const v = num(a[c]); if (v) allv.push(v); }); });
+  const avgAll = mean(allv);
+  h += '<a class="card" href="#/r/' + esc(T.id) + '" style="display:flex;align-items:center;gap:16px;text-decoration:none;background:var(--grad-navy);color:#fff;border:0">' +
+    '<div class="score" style="min-width:76px"><b>' + (avgAll != null ? fmt(avgAll) : '–') + '</b><span>из 5</span></div>' +
+    '<div style="flex:1"><h3 style="color:#fff">Итоги</h3><p style="margin:4px 0 0;font-size:13px;color:#D8DCE6">' + (sent.length ? 'Заполнили ' + sent.length + (inv.length ? ' из ' + inv.length : '') + ' – нажмите, чтобы открыть' : 'Пока никто не заполнил') + '</p></div>' +
+    '<span style="font-size:26px;color:var(--sand)">&#8250;</span></a>';
   const stepHead = (n, t, s) => '<div style="display:flex;gap:12px;align-items:flex-start"><span style="flex:0 0 34px;height:34px;border-radius:50%;background:var(--grad-or);color:#fff;font:600 18px/34px var(--serif);text-align:center">' + n + '</span><div style="flex:1"><h3>' + t + '</h3><p class="sub" style="margin:4px 0 12px">' + s + '</p></div></div>';
   // 1
   h += '<section class="card">' + stepHead(1, 'Ссылка на анкету', 'Отправьте коллегам – откроется в браузере телефона') +
@@ -427,7 +433,7 @@ async function viewTasting(id){
   kit.push('Остатки: ' + (k.leftovers && k.leftovers.length ? k.leftovers.length + ' поз.' : 'не внесены'));
   kit.push('Рабочее место: ' + (k.workplace ? k.workplace.toLowerCase() : 'не отмечено'));
   h += '<section class="card">' + stepHead(2, 'Фото и данные', 'Фото позиций попадут в итоги. Фото есть у ' + withPh + ' из ' + T.dishes.length) +
-    '<div id="t-dishes">' + T.dishes.map(d => '<div class="it" style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)">' +
+    '<button class="btn sm' + (withPh ? '' : ' pri') + '" id="t-phtoggle">' + (withPh ? 'Показать позиции и фото' : 'Добавить фото позиций') + '</button><div id="t-dishes" hidden style="margin-top:10px">' + T.dishes.map(d => '<div class="it" style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)">' +
       '<span style="flex:0 0 56px;height:56px;border-radius:12px;background:var(--bg);overflow:hidden;display:block">' + (d.photo ? '<img src="' + esc(d.photo) + '" data-id="' + esc(d.photoId || '') + '" style="width:56px;height:56px;object-fit:cover;display:block" onerror="imgFallback(this)">' : '') + '</span>' +
       '<span style="flex:1;font-size:14px;line-height:1.3"><em style="display:block;font-style:normal;font-size:11px;color:var(--muted)">' + esc(labelOf(T, d)) + '</em>' + esc(d.name) + '</span>' +
       '<button class="btn sm" data-tph="' + esc(d.n) + '">' + (d.photo ? 'Заменить' : 'Фото') + '</button></div>').join('') + '</div>' +
@@ -443,6 +449,7 @@ async function viewTasting(id){
   const copy = (txt, b, done) => { const ok = () => { b.textContent = done; }; if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => {}); else ok(); };
   const tt = Object.assign({}, T, {project: projOf(T)});
   $('#t-ref').onclick = () => viewTasting(T.id);
+  $('#t-phtoggle').onclick = () => { const x = $('#t-dishes'); x.hidden = !x.hidden; $('#t-phtoggle').textContent = x.hidden ? (withPh ? 'Показать позиции и фото' : 'Добавить фото позиций') : 'Скрыть список'; };
   $('#t-copy').onclick = () => copy(url, $('#t-copy'), 'Ссылка скопирована');
   $('#t-msg').onclick = () => copy(inviteText(tt, url), $('#t-msg'), 'Приглашение скопировано');
   $('#t-share').onclick = () => { const m = inviteText(tt, url); if (navigator.share) navigator.share({text: m}).catch(() => {}); else copy(m, $('#t-share'), 'Скопировано'); };
