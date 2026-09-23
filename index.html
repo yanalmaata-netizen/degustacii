@@ -299,6 +299,7 @@ function route(){
   $$('.modal').forEach(m => m.remove());
   if (p === 't' && id) return viewForm(decodeURIComponent(id));
   if (p === 'r' && id) return viewResults(decodeURIComponent(id));
+  if (p === 'd' && id) return viewTasting(decodeURIComponent(id));
   if (p === 'edit') return viewEditor(id ? decodeURIComponent(id) : '');
   if (p === 'kitchen' && id) return viewKitchen(decodeURIComponent(id));
   return viewHome();
@@ -332,17 +333,13 @@ async function viewHome(){
         '<span class="pill ' + (t.active ? 'open">Анкета открыта' : 'done">Анкета закрыта') + '</span></div>' +
         '<div class="bot"><p class="stats"><span>Участников <b>' + t.guests + (t.invited ? ' из ' + t.invited : '') + '</b></span><span>Позиций <b>' + t.positions + '</b></span>' +
         t.blocks.filter(b => b.avg != null).map(b => '<span>' + esc(b.name) + ' <b>' + fmt(b.avg) + '</b></span>').join('') + '</p>' +
-        '<div class="row"><a class="btn sm navy" href="#/r/' + esc(t.id) + '">Итоги</a><button class="btn sm pri" data-qr="' + esc(t.id) + '">Ссылка на анкету</button><button class="btn sm" data-more="' + esc(t.id) + '">Ещё</button></div>' +
-        '<div class="row" data-morebox="' + esc(t.id) + '" hidden style="margin-top:8px"><a class="btn sm" href="#/edit/' + esc(t.id) + '">Изменить</a><a class="btn sm" href="#/kitchen/' + esc(t.id) + '">После дегустации</a><button class="btn sm" data-open="' + esc(t.id) + '" data-to="' + (t.active ? '0' : '1') + '">' + (t.active ? 'Закрыть анкету' : 'Открыть анкету') + '</button></div></div></article>';
+        '<div class="row"><a class="btn pri" href="#/d/' + esc(t.id) + '">Открыть</a></div></div></div></article>';
     });
     h += '</div>';
   });
   h += '<footer>Дегустации</footer>';
   app.innerHTML = h;
   $$('[data-hp] button').forEach(b => b.onclick = () => { HOMEP = b.dataset.v; viewHome(); });
-  $$('[data-qr]').forEach(b => b.onclick = () => showQR(b.dataset.qr, r.tastings.find(t => t.id === b.dataset.qr)));
-  $$('[data-more]').forEach(b => b.onclick = () => { const x = $('[data-morebox="' + b.dataset.more + '"]'); x.hidden = !x.hidden; });
-  $$('[data-open]').forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = 'Сохраняем'; await apiPost({action:'setOpen', pin: pin(), t: b.dataset.open, open: b.dataset.to === '1'}).catch(() => {}); viewHome(); });
 }
 
 function inviteText(t, url){
@@ -372,6 +369,70 @@ function showQR(id, t){
     setTimeout(() => { const c = $('#qrbox canvas', m); if (c) $('#qdl', m).href = c.toDataURL('image/png'); }, 100);
   };
   draw();
+}
+
+/* ---------------- страница дегустации: ссылка – фото и данные – итоги ---------------- */
+async function viewTasting(id){
+  loading();
+  let r; try { r = await apiGet({action:'results', t: id}); } catch(e){ return state('Нет связи', 'Не удалось загрузить. Обновите страницу.'); }
+  if (!r.ok) return state('Не найдено', id);
+  const T = r.tasting, k = r.kitchen || {};
+  const last = {}; r.answers.forEach(a => last[a['Гость'] + '|' + a['№']] = a);
+  const sent = []; Object.values(last).forEach(a => { if (sent.indexOf(a['Гость']) < 0) sent.push(a['Гость']); });
+  const inv = (T.participants || []).filter(p => p.name).map(p => p.name);
+  const miss = inv.filter(n => sent.indexOf(n) < 0);
+  const url = linkForm(T.id), rurl = linkRes(T.id);
+  const who = (T.blocks || []).map(b => b.signature || b.name).filter(Boolean);
+  const withPh = T.dishes.filter(d => d.photo).length;
+  app.className = 'narrow';
+  let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span><a href="#/">Все дегустации</a></p><h1>' + esc(T.title || 'Дегустация') + '</h1><p class="date">' + esc(T.date || '') + '</p>' +
+    '<p class="ppl" style="margin:0">' + esc(who.join(' · ')) + '</p>' +
+    '<p style="margin:12px 0 0"><span class="pill ' + (T.open ? 'open">Анкета открыта' : 'done">Анкета закрыта') + '</span></p></header>';
+  const stepHead = (n, t, s) => '<div style="display:flex;gap:12px;align-items:flex-start"><span style="flex:0 0 34px;height:34px;border-radius:50%;background:var(--grad-or);color:#fff;font:600 18px/34px var(--serif);text-align:center">' + n + '</span><div style="flex:1"><h3>' + t + '</h3><p class="sub" style="margin:4px 0 12px">' + s + '</p></div></div>';
+  // 1
+  h += '<section class="card">' + stepHead(1, 'Ссылка на анкету', 'Отправьте коллегам – откроется в браузере телефона') +
+    '<p class="lnk" style="text-align:left;margin:0 0 12px">' + esc(url) + '</p>' +
+    '<div class="row"><button class="btn sm pri" id="t-share">Отправить</button><button class="btn sm" id="t-copy">Скопировать ссылку</button><button class="btn sm" id="t-msg">Скопировать приглашение</button><button class="btn sm" id="t-qr">QR</button></div>' +
+    '<p style="margin:14px 0 0;font-size:14px">Заполнили: <b>' + sent.length + (inv.length ? ' из ' + inv.length : '') + '</b>' + (sent.length ? ' – ' + esc(sent.join(', ')) : '') + ' <button class="btn sm" id="t-ref" style="margin-left:6px;padding:3px 10px">Обновить</button></p>' +
+    (miss.length ? '<p class="sub" style="margin:4px 0 0">Ещё не заполнили: ' + esc(miss.join(', ')) + '</p>' : '') +
+    '<div class="row" style="margin-top:12px"><button class="btn sm" id="t-open">' + (T.open ? 'Закрыть анкету' : 'Открыть анкету снова') + '</button><a class="btn sm" href="#/edit/' + esc(T.id) + '">Изменить дегустацию</a></div></section>';
+  // 2
+  const kit = [];
+  kit.push('Продукты: ' + (k.request && k.request.length ? k.request.length + ' поз.' : 'не внесены'));
+  kit.push('Остатки: ' + (k.leftovers && k.leftovers.length ? k.leftovers.length + ' поз.' : 'не внесены'));
+  kit.push('Рабочее место: ' + (k.workplace ? k.workplace.toLowerCase() : 'не отмечено'));
+  h += '<section class="card">' + stepHead(2, 'Фото и данные', 'Фото позиций попадут в итоги. Фото есть у ' + withPh + ' из ' + T.dishes.length) +
+    '<div id="t-dishes">' + T.dishes.map(d => '<div class="it" style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)">' +
+      '<span style="flex:0 0 56px;height:56px;border-radius:12px;background:var(--bg);overflow:hidden;display:block">' + (d.photo ? '<img src="' + esc(d.photo) + '" data-id="' + esc(d.photoId || '') + '" style="width:56px;height:56px;object-fit:cover;display:block" onerror="imgFallback(this)">' : '') + '</span>' +
+      '<span style="flex:1;font-size:14px;line-height:1.3"><em style="display:block;font-style:normal;font-size:11px;color:var(--muted)">' + esc(labelOf(T, d)) + '</em>' + esc(d.name) + '</span>' +
+      '<button class="btn sm" data-tph="' + esc(d.n) + '">' + (d.photo ? 'Заменить' : 'Фото') + '</button></div>').join('') + '</div>' +
+    '<p class="sub" style="margin:14px 0 8px">' + esc(kit.join(' · ')) + '</p>' +
+    '<a class="btn sm navy" href="#/kitchen/' + esc(T.id) + '">Продукты, остатки, рабочее место</a></section>';
+  // 3
+  h += '<section class="card">' + stepHead(3, 'Итоги', 'Собираются сами из анкет – обновляются с каждой отправкой') +
+    '<p class="lnk" style="text-align:left;margin:0 0 12px">' + esc(rurl) + '</p>' +
+    '<div class="row"><a class="btn sm pri" href="#/r/' + esc(T.id) + '">Открыть итоги</a><button class="btn sm" id="t-rshare">Отправить итоги</button><button class="btn sm" id="t-rcopy">Скопировать ссылку</button></div></section>';
+  app.innerHTML = h;
+  const copy = (txt, b, done) => { const ok = () => { b.textContent = done; }; if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => {}); else ok(); };
+  const tt = Object.assign({}, T, {project: projOf(T)});
+  $('#t-ref').onclick = () => viewTasting(T.id);
+  $('#t-copy').onclick = () => copy(url, $('#t-copy'), 'Ссылка скопирована');
+  $('#t-msg').onclick = () => copy(inviteText(tt, url), $('#t-msg'), 'Приглашение скопировано');
+  $('#t-share').onclick = () => { const m = inviteText(tt, url); if (navigator.share) navigator.share({text: m}).catch(() => {}); else copy(m, $('#t-share'), 'Скопировано'); };
+  $('#t-qr').onclick = () => showQR(T.id, tt);
+  $('#t-rcopy').onclick = () => copy(rurl, $('#t-rcopy'), 'Ссылка скопирована');
+  $('#t-rshare').onclick = () => { const m = 'Итоги дегустации – ' + (T.title || '') + (T.date ? ', ' + T.date : '') + ':\n' + rurl; if (navigator.share) navigator.share({text: m}).catch(() => {}); else copy(m, $('#t-rshare'), 'Скопировано'); };
+  $('#t-open').onclick = async () => { const b = $('#t-open'); b.disabled = true; b.textContent = 'Сохраняем'; await apiPost({action:'setOpen', pin: pin(), t: T.id, open: !T.open}).catch(() => {}); viewTasting(T.id); };
+  $$('[data-tph]').forEach(b => b.onclick = async () => {
+    const [f] = await pickFile(false); if (!f) return;
+    b.disabled = true; b.textContent = 'Загружаем';
+    try {
+      const up = await uploadPhoto(f, T.id + '-' + b.dataset.tph);
+      const s = await apiPost({action:'setPhoto', pin: pin(), t: T.id, n: Number(b.dataset.tph), id: up.id}); if (!s.ok) throw 0;
+      const box = b.parentNode.firstChild; box.innerHTML = '<img src="' + URL.createObjectURL(f) + '" style="width:56px;height:56px;object-fit:cover;display:block">';
+      b.disabled = false; b.textContent = 'Заменить';
+    } catch(e){ b.disabled = false; b.textContent = 'Не загрузилось – ещё раз'; }
+  });
 }
 
 /* ---------------- анкета ---------------- */
@@ -521,7 +582,7 @@ function renderResults(){
   const roles = ROLES.filter(r => guests.some(g => role[g] === r));
   const bAvg = b => mean(T.dishes.filter(d => d.block === b).map(d => stats[d.n].avg).filter(x => x != null));
   app.className = 'res';
-  let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span><a href="#/">Все дегустации</a></p><h1>Итоги дегустации</h1><p class="date">' + esc(T.date) + '</p>';
+  let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span><a href="#/d/' + esc(T.id) + '">К дегустации</a></p><h1>Итоги дегустации</h1><p class="date">' + esc(T.date) + '</p>';
   h += '<div class="kpis"><div><b>' + G.length + '</b><span>участников</span></div>' + blocks.slice(0, 2).map(b => '<div><b>' + fmt(bAvg(b)) + '</b><span>' + esc((b || 'позиции').toLowerCase()) + ', средний балл</span></div>').join('') + '</div>';
   const sigs = blocks.slice(0, 2).map(b => { const x = (T.blocks || []).find(y => y.name === b); return x ? x.signature : ''; });
   h += '<div class="who"><div class="chef">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p>' + esc(sigs[0] || T.signature || '') + '</p></div>' + (sigs[1] ? '<p style="text-align:right">' + esc(sigs[1]) + '</p>' : '') + '</div>';
@@ -605,7 +666,7 @@ function resizeImage(file, max){
 }
 async function uploadPhoto(file, name){
   const data = await resizeImage(file, 1400);
-  const r = await apiPost({action:'upload', pin: pin(), name, data});
+  const r = await apiPost({action:'upload', pin: pin(), name, data: JSON.stringify(data)}); // строка в JSON – сервер разворачивает её обратно
   if (!r.ok) throw new Error(r.error); return r;
 }
 function pickFile(multiple){ return new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; if (multiple) i.multiple = true; i.onchange = () => res(Array.from(i.files || [])); i.click(); }); }
@@ -690,7 +751,7 @@ function renderWizard(){
     h += '<h3>Какие продукты задействованы</h3><p class="sub">Свободным текстом, каждый продукт с новой строки – попадёт в итоги в блок «После дегустации». Можно пропустить</p><textarea id="w-prod" rows="7" placeholder="Говяжья вырезка – 2 кг&#10;Фуа-гра – 0,5 кг&#10;…">' + esc(W.products) + '</textarea>';
     h += '<div class="f" style="margin-top:16px"><label class="l">Приветствие в анкете</label><textarea id="w-greet" rows="5">' + esc(W.greetEdited ? T.greeting : autoGreeting(T, P, D)) + '</textarea></div>';
   }
-  h += '</div><div class="row" style="margin-top:18px;justify-content:space-between">' + (W.step ? '<button class="btn" id="w-back">Назад</button>' : '<a class="btn" href="#/">Отмена</a>') +
+  h += '</div><div class="row" style="margin-top:18px;justify-content:space-between">' + (W.step ? '<button class="btn" id="w-back">Назад</button>' : '<a class="btn" href="' + (W.isNew ? '#/' : '#/d/' + esc(T.id)) + '">Отмена</a>') +
     (W.step < STEPS.length - 1 ? '<button class="btn pri" id="w-next">Далее</button>' : '<button class="btn pri" id="w-save">' + (W.isNew ? 'Готово – получить ссылку' : 'Сохранить') + '</button>') + '</div><p class="err" id="err"></p>';
   app.innerHTML = h;
   wireWizard();
@@ -749,7 +810,7 @@ async function saveWizard(){
     const r = await apiPost({action:'create', pin: pin(), data}); if (!r.ok) throw new Error(r.error);
     const lines = W.products.split('\n').map(s => s.trim()).filter(Boolean);
     if (lines.length) await apiPost({action:'kitchen', pin: pin(), t: T.id, data: {workplace: '', comment: '', photoIds: [], request: lines.map(name => ({name})), leftovers: []}}).catch(() => {});
-    doneScreen(data);
+    location.hash = '#/d/' + data.id;
   } catch(e){ btn.disabled = false; btn.textContent = W.isNew ? 'Готово – получить ссылку' : 'Сохранить'; err.textContent = 'Не сохранилось: ' + e.message + '. Проверьте интернет и нажмите ещё раз.'; }
 }
 function doneScreen(data){
@@ -778,7 +839,7 @@ function renderKitchen(){
   app.className = 'narrow';
   const units = ['кг','г','л','шт','уп'];
   const uSel = (v, k) => '<select data-k="' + k + '">' + units.map(u => '<option' + (u === v ? ' selected' : '') + '>' + u + '</option>').join('') + '</select>';
-  let h = '<header class="hero"><p class="brand"><span>Дегустации</span><a href="#/">Все дегустации</a></p><h1>После дегустации</h1><p class="ppl" style="margin:0">' + esc(K.title) + ' · ' + esc(K.date) + '</p></header>';
+  let h = '<header class="hero"><p class="brand"><span>Дегустации</span><a href="#/d/' + esc(K.id) + '">К дегустации</a></p><h1>После дегустации</h1><p class="ppl" style="margin:0">' + esc(K.title) + ' · ' + esc(K.date) + '</p></header>';
   h += '<div class="card"><h3>Рабочее место</h3><div class="chips" data-wp style="margin:12px 0">' + ['Чисто','Есть замечания'].map(v => '<button type="button" data-v="' + v + '"' + (K.workplace === v ? ' class="on"' : '') + '>' + v + '</button>').join('') + '</div>';
   h += '<div class="f"><label class="l">Комментарий</label><textarea id="k-cm" rows="3">' + esc(K.comment) + '</textarea></div>';
   h += '<div class="row">' + K.photos.map((p, i) => '<span style="position:relative"><img class="thumb" src="' + esc(p.url) + '" style="width:64px;height:64px;border-radius:10px;object-fit:cover" onerror="this.style.opacity=.3"><button class="x" data-delp="' + i + '" style="position:absolute;top:-8px;right:-6px">×</button></span>').join('') + '<button class="btn sm" id="k-ph">+ Фото</button><span class="sub" id="k-phst" style="margin:0"></span></div></div>';
@@ -807,7 +868,7 @@ function renderKitchen(){
     sync(); const btn = $('#k-save'); btn.disabled = true; btn.textContent = 'Сохраняем';
     const clean = a => a.filter(x => x.name).map(x => Object.assign({}, x, {sum: Number(String(x.sum || '').replace(/[^\d.,]/g, '').replace(',', '.')) || ''}));
     const data = {workplace: K.workplace, comment: K.comment, photoIds: K.photos.map(p => p.id), request: clean(K.request), leftovers: clean(K.leftovers)};
-    try { const r = await apiPost({action:'kitchen', pin: pin(), t: K.id, data}); if (!r.ok) throw new Error(r.error); location.hash = '#/r/' + K.id; }
+    try { const r = await apiPost({action:'kitchen', pin: pin(), t: K.id, data}); if (!r.ok) throw new Error(r.error); location.hash = '#/d/' + K.id; }
     catch(e){ btn.disabled = false; btn.textContent = 'Сохранить'; $('#err').textContent = 'Не сохранилось: ' + e.message; }
   };
 }
