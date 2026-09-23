@@ -198,6 +198,12 @@ footer{margin:30px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 .modal .qr{background:#fff;border-radius:14px;padding:14px;display:inline-block;margin:10px 0}
 .modal .qr img,.modal .qr canvas{display:block;width:240px;height:240px}
 .lnk{word-break:break-all;font-size:13px;color:var(--muted);margin:6px 0 12px}
+#topnav{position:fixed;left:0;right:0;top:0;z-index:15;padding:env(safe-area-inset-top,0px) 16px 0;background:color-mix(in srgb,var(--bg) 90%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+#topnav div{max-width:1240px;margin:0 auto;height:52px;display:flex;align-items:center;gap:10px}
+#topnav a{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:15px;text-decoration:none;color:var(--ink);padding:8px 14px;border-radius:999px;background:var(--card);border:1px solid var(--line)}
+#topnav span{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.nav main{padding-top:70px}
+body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 @media (min-width:1024px){
   main{max-width:1240px;padding:32px 40px 72px}
   main.narrow{max-width:760px}
@@ -240,6 +246,7 @@ footer{margin:30px 0 0;text-align:center;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
+<nav id="topnav" hidden><div><a href="#/">&#8592; Главная</a><span>Дегустации</span></div></nav>
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
@@ -297,6 +304,8 @@ function route(){
   const [p, id] = h.split('/');
   window.scrollTo(0, 0);
   $$('.modal').forEach(m => m.remove());
+  const showNav = !!p && p !== 't';
+  document.getElementById('topnav').hidden = !showNav; document.body.classList.toggle('nav', showNav);
   if (p === 't' && id) return viewForm(decodeURIComponent(id));
   if (p === 'r' && id) return viewResults(decodeURIComponent(id));
   if (p === 'd' && id) return viewTasting(decodeURIComponent(id));
