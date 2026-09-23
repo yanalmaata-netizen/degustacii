@@ -246,10 +246,11 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 </style>
 </head>
 <body>
-<nav id="topnav" hidden><div><a href="#/">&#8592; Главная</a><span>Дегустации</span></div></nav>
+<nav id="topnav" hidden><div><a href="#/">&#8592; Главная</a><span style="flex:1">Дегустации</span><span id="ver"></span></div></nav>
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
+const APP_VERSION = '5 от 23.09.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -305,6 +306,7 @@ function route(){
   window.scrollTo(0, 0);
   $$('.modal').forEach(m => m.remove());
   const showNav = !!p && p !== 't';
+  document.getElementById('ver').textContent = 'в. ' + APP_VERSION.split(' ')[0];
   document.getElementById('topnav').hidden = !showNav; document.body.classList.toggle('nav', showNav);
   if (p === 't' && id) return viewForm(decodeURIComponent(id));
   if (p === 'r' && id) return viewResults(decodeURIComponent(id));
@@ -346,7 +348,7 @@ async function viewHome(){
     });
     h += '</div>';
   });
-  h += '<footer>Дегустации</footer>';
+  h += '<footer>Дегустации · версия ' + APP_VERSION + '</footer>';
   app.innerHTML = h;
   $$('[data-hp] button').forEach(b => b.onclick = () => { HOMEP = b.dataset.v; viewHome(); });
 }
