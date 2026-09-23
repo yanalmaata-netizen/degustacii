@@ -124,6 +124,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy2)}
 .qrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 2px;border-top:1px solid var(--line)}
 .qrow .chips{flex-wrap:nowrap;flex-shrink:0}
 .comment{margin-top:12px}
+.dish.skip .rate{display:none}
+.qrow.jarrow{flex-direction:column;align-items:stretch;gap:8px}
+.qrow.jarrow .chips{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.qrow.jarrow .chips button{padding:8px 4px;white-space:nowrap}
+.dish.skip .dhead{opacity:.55}
 .hero.bhero{margin-top:22px}
 .thanks{padding-top:16vh;text-align:center}
 .thanks .letter{color:var(--ink)}
@@ -250,7 +255,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '5 от 23.09.2026';
+const APP_VERSION = '6 от 23.09.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -296,6 +301,14 @@ function photoTag(url, id, cls, alt){
   return '<img class="' + cls + '" src="' + esc(url) + '" data-id="' + esc(id || '') + '" alt="' + esc(alt || '') + '" loading="lazy" onerror="imgFallback(this)">';
 }
 const projOf = t => t.project || 'DIO Grand Cafe';
+const JAR_OPTS = ['Сладость','Соль','Кислотность','Острота','Крепость','Температура'];
+const JAR_VALS = ['мало','в самый раз','много'];
+const setOf = T => (T && T.settings) || {};
+const jarOf = (T, d) => ((setOf(T).jar || {})[d.block]) || [];
+const isBlind = T => !!setOf(T).blind;
+const codeOf = (T, d) => (setOf(T).codes || {})[d.n] || String(100 + Number(d.n));
+const shownName = (T, d) => isBlind(T) ? 'Образец ' + codeOf(T, d) : d.name;
+const extraOf = a => { try { return JSON.parse(String(a['Доп'] || '{}')) || {}; } catch(e){ return {}; } };
 function linkForm(id){ return BASE + '#/t/' + id; }
 function linkRes(id){ return BASE + '#/r/' + id; }
 
@@ -320,9 +333,9 @@ window.addEventListener('hashchange', route);
 /* ---------------- главная ---------------- */
 let HOMEP = 'all';
 const ROLE_PRESETS = [
-  {role: 'Шеф-повар', block: 'Кухня', gen: 'шеф-повара', criteria: KC, item: 'Блюдо'},
-  {role: 'Шеф-бармен', block: 'Бар', gen: 'шеф-бармена', criteria: BC, item: 'Напиток'},
-  {role: 'Шеф-кальянщик', block: 'Кальян', gen: 'шеф-кальянщика', criteria: ['Вкус','Дым','Крепость','Длительность','Подача','Общее впечатление'], item: 'Кальян'}
+  {role: 'Шеф-повар', block: 'Кухня', gen: 'шеф-повара', criteria: KC, item: 'Блюдо', jar: ['Соль','Сладость','Кислотность']},
+  {role: 'Шеф-бармен', block: 'Бар', gen: 'шеф-бармена', criteria: BC, item: 'Напиток', jar: ['Сладость','Кислотность','Крепость']},
+  {role: 'Шеф-кальянщик', block: 'Кальян', gen: 'шеф-кальянщика', criteria: ['Вкус','Дым','Крепость','Длительность','Подача','Общее впечатление'], item: 'Кальян', jar: []}
 ];
 async function viewHome(){
   loading();
@@ -393,6 +406,7 @@ async function viewTasting(id){
   const inv = (T.participants || []).filter(p => p.name).map(p => p.name);
   const miss = inv.filter(n => sent.indexOf(n) < 0);
   const url = linkForm(T.id), rurl = linkRes(T.id);
+  const excl = (setOf(T).excluded || []).slice();
   const who = (T.blocks || []).map(b => b.signature || b.name).filter(Boolean);
   const withPh = T.dishes.filter(d => d.photo).length;
   app.className = 'narrow';
@@ -422,7 +436,9 @@ async function viewTasting(id){
   // 3
   h += '<section class="card">' + stepHead(3, 'Итоги', 'Собираются сами из анкет – обновляются с каждой отправкой') +
     '<p class="lnk" style="text-align:left;margin:0 0 12px">' + esc(rurl) + '</p>' +
-    '<div class="row"><a class="btn sm pri" href="#/r/' + esc(T.id) + '">Открыть итоги</a><button class="btn sm" id="t-rshare">Отправить итоги</button><button class="btn sm" id="t-rcopy">Скопировать ссылку</button></div></section>';
+    '<div class="row"><a class="btn sm pri" href="#/r/' + esc(T.id) + '">Открыть итоги</a><button class="btn sm" id="t-rshare">Отправить итоги</button><button class="btn sm" id="t-rcopy">Скопировать ссылку</button><button class="btn sm" id="t-tg">Сводка в Telegram</button></div>' +
+    (sent.length ? '<p class="sub" style="margin:16px 0 6px">Кто участвует в расчёте – нажмите на имя, чтобы исключить или вернуть</p><div class="chips" id="t-excl">' + sent.map(n => '<button type="button" data-v="' + esc(n) + '"' + (excl.indexOf(n) < 0 ? ' class="on"' : '') + '>' + esc(n) + '</button>').join('') + '</div>' : '') +
+    '<p class="sub" id="t-note" style="margin:10px 0 0"></p></section>';
   app.innerHTML = h;
   const copy = (txt, b, done) => { const ok = () => { b.textContent = done; }; if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => {}); else ok(); };
   const tt = Object.assign({}, T, {project: projOf(T)});
@@ -433,7 +449,12 @@ async function viewTasting(id){
   $('#t-qr').onclick = () => showQR(T.id, tt);
   $('#t-rcopy').onclick = () => copy(rurl, $('#t-rcopy'), 'Ссылка скопирована');
   $('#t-rshare').onclick = () => { const m = 'Итоги дегустации – ' + (T.title || '') + (T.date ? ', ' + T.date : '') + ':\n' + rurl; if (navigator.share) navigator.share({text: m}).catch(() => {}); else copy(m, $('#t-rshare'), 'Скопировано'); };
-  $('#t-open').onclick = async () => { const b = $('#t-open'); b.disabled = true; b.textContent = 'Сохраняем'; await apiPost({action:'setOpen', pin: pin(), t: T.id, open: !T.open}).catch(() => {}); viewTasting(T.id); };
+  $('#t-open').onclick = async () => { const b = $('#t-open'); b.disabled = true; b.textContent = 'Сохраняем'; const r2 = await apiPost({action:'setOpen', pin: pin(), t: T.id, open: !T.open}).catch(() => ({})); await viewTasting(T.id);
+    if (T.open && r2 && r2.telegram) $('#t-note').textContent = r2.telegram.ok ? 'Анкета закрыта, сводка отправлена в Telegram.' : (r2.telegram.error === 'telegram_not_configured' ? 'Анкета закрыта. Telegram ещё не подключён.' : 'Анкета закрыта. Сводка в Telegram не ушла.'); };
+  $('#t-tg').onclick = async () => { const b = $('#t-tg'); b.disabled = true; b.textContent = 'Отправляем'; const r2 = await apiPost({action:'notify', pin: pin(), t: T.id}).catch(() => ({})); b.disabled = false;
+    b.textContent = r2.ok ? 'Сводка отправлена' : (r2.error === 'telegram_not_configured' ? 'Telegram не подключён' : 'Не отправилось'); };
+  $$('#t-excl button').forEach(b => b.onclick = async () => { const n = b.dataset.v; const i = excl.indexOf(n); if (i >= 0) excl.splice(i, 1); else excl.push(n); b.classList.toggle('on', excl.indexOf(n) < 0);
+    $('#t-note').textContent = 'Сохраняем'; const r2 = await apiPost({action:'settings', pin: pin(), t: T.id, data: {excluded: excl}}).catch(() => ({})); $('#t-note').textContent = r2.ok ? (excl.length ? 'Исключены из расчёта: ' + excl.join(', ') : 'Все участники в расчёте') : 'Не сохранилось – нажмите ещё раз'; });
   $$('[data-tph]').forEach(b => b.onclick = async () => {
     const [f] = await pickFile(false); if (!f) return;
     b.disabled = true; b.textContent = 'Загружаем';
@@ -456,7 +477,7 @@ async function viewForm(id){
   if (store.get(sentKey)) return thanks(T);
   if (!T.open) return state('Анкета закрыта', 'Приём оценок по этой дегустации завершён.', '<p><a class="btn navy" href="#/r/' + esc(T.id) + '">Смотреть итоги</a></p>');
   F = {T, sentKey, draftKey, answers:{}, fin:{best:'', fix:'', overall:''}, role:'', guest:'', confirm:false};
-  T.dishes.forEach(d => F.answers[d.n] = {scores:{}, comment:'', recommend:'', portion:''});
+  T.dishes.forEach(d => F.answers[d.n] = {scores:{}, comment:'', recommend:'', portion:'', jar:{}, skip:false});
   const dr = store.get(draftKey);
   if (dr){ Object.keys(dr.answers || {}).forEach(n => { if (F.answers[n]) Object.assign(F.answers[n], dr.answers[n]); }); Object.assign(F.fin, dr.fin || {}); F.role = dr.role || ''; F.guest = dr.guest || ''; }
   renderForm();
@@ -468,7 +489,7 @@ function renderForm(){
   if (T.greeting) h += '<p class="letter">' + esc(T.greeting) + '</p>';
   h += '<div class="chef">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="sign">' + esc(T.signature || '') + '</p></div>';
   const groups = []; T.dishes.forEach(d => { let g = groups.find(x => x.name === d.block); if (!g) groups.push(g = {name: d.block, items: []}); g.items.push(d); });
-  groups.forEach(g => h += '<div class="menu"><p>' + esc(groups.length > 1 && g.name ? g.name : 'Меню дегустации') + '</p><ol>' + g.items.map(d => '<li>' + esc(d.name) + '</li>').join('') + '</ol></div>');
+  groups.forEach(g => h += '<div class="menu"><p>' + esc(groups.length > 1 && g.name ? g.name : 'Меню дегустации') + '</p><ol>' + g.items.map(d => '<li>' + esc(shownName(T, d)) + '</li>').join('') + '</ol></div>');
   h += '</header><div class="progress"><span id="pt"></span><div class="track"><div class="fill" id="pf"></div></div></div>';
   const P = (T.participants || []).filter(p => p.name);
   const inList = P.some(p => p.name === F.guest);
@@ -487,18 +508,19 @@ function renderForm(){
     }
     prev = d.block;
     const a = F.answers[d.n];
-    h += '<div class="orn"><i></i></div><section class="dish" data-n="' + d.n + '"><div class="dhead"><p class="lab">' + esc(labelOf(T, d)) + '</p><h3>' + esc(d.name) + '</h3>';
-    if (d.desc) h += '<p class="desc">' + esc(d.desc) + '</p>';
+    h += '<div class="orn"><i></i></div><section class="dish' + (a.skip ? ' skip' : '') + '" data-n="' + d.n + '"><div class="dhead"><p class="lab">' + esc(isBlind(T) ? 'Слепая дегустация' : labelOf(T, d)) + '</p><h3>' + esc(shownName(T, d)) + '</h3>';
+    if (d.desc && !isBlind(T)) h += '<p class="desc">' + esc(d.desc) + '</p>';
     if (d.allergens) h += '<p class="allerg">Аллергены: ' + esc(d.allergens) + '</p>';
-    h += '</div><div class="body"><p class="legend">1 – слабо, 5 – отлично</p>';
+    h += '</div><div class="body"><div class="qrow" style="border-top:0;padding-top:0"><span class="muted" style="font-size:13px">Не пробовали эту позицию?</span><div class="chips" data-skip><button type="button" data-v="skip"' + (a.skip ? ' class="on"' : '') + '>Не пробовал(а)</button></div></div><div class="rate"><p class="legend">1 – слабо, 5 – отлично</p>';
     critOf(T, d).forEach(c => {
       h += '<div class="crit"><span>' + esc(c) + '</span><div class="scale" data-c="' + esc(c) + '">' + [1,2,3,4,5].map(v => '<button type="button" data-v="' + v + '"' + (a.scores[c] === v ? ' class="on"' : '') + '>' + v + '</button>').join('') + '</div></div>';
     });
-    h += '<div class="qrow"><span>Размер порции</span><div class="chips" data-q="portion">' + PORTIONS.map(v => '<button type="button" data-v="' + v + '"' + (a.portion === v ? ' class="on"' : '') + '>' + v + '</button>').join('') + '</div></div>';
+    jarOf(T, d).forEach(j => { h += '<div class="qrow jarrow"><span>' + esc(j) + '</span><div class="chips" data-jar="' + esc(j) + '">' + JAR_VALS.map(v => '<button type="button" data-v="' + v + '"' + ((a.jar || {})[j] === v ? ' class="on"' : '') + '>' + v + '</button>').join('') + '</div></div>'; });
+    h += '<div class="qrow jarrow"><span>Размер порции</span><div class="chips" data-q="portion">' + PORTIONS.map(v => '<button type="button" data-v="' + v + '"' + (a.portion === v ? ' class="on"' : '') + '>' + v + '</button>').join('') + '</div></div>';
     h += '<div class="qrow"><span>Порекомендовали бы гостю?</span><div class="chips" data-q="recommend">' + ['Да','Нет'].map(v => '<button type="button" data-v="' + v.toLowerCase() + '"' + (a.recommend === v.toLowerCase() ? ' class="on"' : '') + '>' + v + '</button>').join('') + '</div></div>';
-    h += '<div class="comment"><label class="l">Ваш комментарий</label><textarea data-cm rows="3" maxlength="1000" placeholder="Что понравилось, что бы вы изменили">' + esc(a.comment) + '</textarea></div></div></section>';
+    h += '</div><div class="comment"><label class="l">Ваш комментарий</label><textarea data-cm rows="3" maxlength="1000" placeholder="Что понравилось, что бы вы изменили">' + esc(a.comment) + '</textarea></div></div></section>';
   });
-  const chipsOf = k => '<div class="chips" data-fin="' + k + '">' + T.dishes.map(d => '<button type="button" data-v="' + esc(d.name) + '"' + (F.fin[k] === d.name ? ' class="on"' : '') + '>' + esc(d.name) + '</button>').join('') + '</div>';
+  const chipsOf = k => '<div class="chips" data-fin="' + k + '">' + T.dishes.map(d => '<button type="button" data-v="' + esc(d.name) + '"' + (F.fin[k] === d.name ? ' class="on"' : '') + '>' + esc(shownName(T, d)) + '</button>').join('') + '</div>';
   h += '<div class="orn"><i></i></div><section class="dish"><div class="dhead"><p class="lab">Итог</p><h3>Ваш выбор</h3></div><div class="body">';
   h += '<div class="f"><label class="l">Что понравилось больше всего</label>' + chipsOf('best') + '</div>';
   h += '<div class="f"><label class="l">Что стоит доработать</label>' + chipsOf('fix') + '</div>';
@@ -514,6 +536,8 @@ function renderForm(){
       if (p){ F.guest = p.name; F.role = p.role || F.role; F.other = false; } else { F.guest = ''; F.other = true; }
       saveDraft(); renderForm(); return;
     }
+    if (box.dataset.skip !== undefined){ const sec = b.closest('.dish'); const a = F.answers[sec.dataset.n]; a.skip = !a.skip; b.classList.toggle('on', a.skip); sec.classList.toggle('skip', a.skip); F.confirm = false; progress(); saveDraft(); return; }
+    if (box.dataset.jar){ const a = F.answers[b.closest('.dish').dataset.n]; a.jar = a.jar || {}; a.jar[box.dataset.jar] = a.jar[box.dataset.jar] === v ? '' : v; $$('button', box).forEach(x => x.classList.toggle('on', x.dataset.v === a.jar[box.dataset.jar])); saveDraft(); return; }
     if (box.dataset.role !== undefined){ F.role = v; }
     else if (box.dataset.fin){ F.fin[box.dataset.fin] = F.fin[box.dataset.fin] === v ? '' : v; }
     else if (box.dataset.q){ const a = F.answers[b.closest('.dish').dataset.n]; a[box.dataset.q] = a[box.dataset.q] === v ? '' : v; }
@@ -531,7 +555,7 @@ function renderForm(){
   $('#send').onclick = sendForm;
 }
 function progress(){
-  const T = F.T; const done = T.dishes.filter(d => critOf(T, d).every(c => F.answers[d.n].scores[c])).length;
+  const T = F.T; const done = T.dishes.filter(d => F.answers[d.n].skip || critOf(T, d).every(c => F.answers[d.n].scores[c])).length;
   const pt = $('#pt'), pf = $('#pf'); if (!pt) return;
   pt.textContent = 'Оценено ' + done + ' из ' + T.dishes.length; pf.style.width = (done / T.dishes.length * 100) + '%';
 }
@@ -540,14 +564,19 @@ async function sendForm(){
   const guest = F.guest.trim();
   if (!guest){ err.textContent = 'Укажите ваше имя в начале страницы.'; $('#guest').focus(); return; }
   if (!F.role){ err.textContent = 'Отметьте вашу роль в начале страницы.'; return; }
-  const empty = T.dishes.filter(d => critOf(T, d).some(c => !F.answers[d.n].scores[c])).map(d => labelOf(T, d).toLowerCase());
+  const empty = T.dishes.filter(d => !F.answers[d.n].skip && critOf(T, d).some(c => !F.answers[d.n].scores[c])).map(d => (isBlind(T) ? shownName(T, d) : labelOf(T, d)).toLowerCase());
   if (empty.length && !F.confirm){ F.confirm = true; err.textContent = 'Не все оценки проставлены: ' + empty.join(', ') + '. Можно дополнить или нажать ещё раз, чтобы отправить как есть.'; btn.textContent = 'Отправить как есть'; return; }
   btn.disabled = true; btn.textContent = 'Отправляем'; err.textContent = '';
-  const rows = T.dishes.map(d => { const a = F.answers[d.n]; return {n: d.n, name: d.name, scores: a.scores, portion: a.portion, recommend: a.recommend, comment: a.comment.trim()}; });
+  const rows = T.dishes.map(d => { const a = F.answers[d.n]; const jar = {}; Object.keys(a.jar || {}).forEach(k => { if (a.jar[k]) jar[k] = a.jar[k]; });
+    const extra = a.skip ? {skip: true} : (Object.keys(jar).length ? {jar} : null);
+    return {n: d.n, name: d.name, scores: a.skip ? {} : a.scores, portion: a.skip ? '' : a.portion, recommend: a.skip ? '' : a.recommend, comment: a.comment.trim(), extra}; });
   const ov = F.fin.overall.trim();
   if (F.fin.best || F.fin.fix || ov) rows.push({n: Math.max.apply(null, T.dishes.map(d => Number(d.n) || 0)) + 1, name: 'Итог', scores: {}, comment: [F.fin.best ? 'Лучшее: ' + F.fin.best : '', F.fin.fix ? 'Доработать: ' + F.fin.fix : '', ov ? 'Общее впечатление: ' + ov : ''].filter(Boolean).join('. ')});
   try {
-    const r = await apiPost({tasting: T.id, guest, role: F.role, answers: rows});
+    const payload = {tasting: T.id, guest, role: F.role, answers: rows};
+    let r;
+    try { r = await apiPost(payload); }
+    catch(netErr){ queuePush(payload); store.del(F.draftKey); store.set(F.sentKey, 1); thanks(T, true); return; }
     if (!r.ok) throw new Error(r.error);
     store.del(F.draftKey); store.set(F.sentKey, 1); thanks(T);
   } catch(e){
@@ -555,9 +584,19 @@ async function sendForm(){
     err.textContent = String(e.message) === 'closed' ? 'Анкета уже закрыта – оценки не принимаются.' : 'Оценки не отправились. Проверьте интернет и нажмите ещё раз.';
   }
 }
-function thanks(T){
+function queuePush(p){ const q = store.get('dg-queue') || []; q.push(p); store.set('dg-queue', q); }
+async function queueFlush(){
+  const q = store.get('dg-queue') || []; if (!q.length || !navigator.onLine) return;
+  const rest = [];
+  for (const p of q){ try { const r = await apiPost(p); if (!r.ok && r.error !== 'closed') rest.push(p); } catch(e){ rest.push(p); } }
+  store.set('dg-queue', rest);
+  const n = $('#qnote'); if (n && !rest.length) n.textContent = 'Оценки отправлены.';
+}
+window.addEventListener('online', queueFlush);
+setInterval(queueFlush, 20000);
+function thanks(T, queued){
   window.scrollTo(0, 0); app.className = 'narrow';
-  app.innerHTML = '<div class="thanks">' + (T.chefPhoto ? '<img class="chefbig" src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="letter">Благодарю вас за участие в дегустации.</p><p class="sign" style="color:var(--or2)">' + esc(T.signature || '') + '</p></div>';
+  app.innerHTML = '<div class="thanks">' + (T.chefPhoto ? '<img class="chefbig" src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="letter">Благодарю вас за участие в дегустации.</p><p class="sign" style="color:var(--or2)">' + esc(T.signature || '') + '</p>' + (queued ? '<p class="sub" id="qnote" style="margin-top:16px">Интернета сейчас нет – оценки сохранены на телефоне и отправятся сами, когда появится связь. Страницу можно закрыть, но лучше открыть её ещё раз при сети.</p>' : '') + '</div>';
 }
 
 /* ---------------- итоги ---------------- */
@@ -571,7 +610,8 @@ async function viewResults(id){
   const guests = []; const role = {};
   Object.values(last).forEach(a => { if (guests.indexOf(a['Гость']) < 0) guests.push(a['Гость']); if (a['Роль']) role[a['Гость']] = a['Роль']; });
   (T.participants || []).forEach(p => { if (p.name && p.role && !role[p.name]) role[p.name] = p.role; });
-  R = {T, last, guests, role, kitchen: r.kitchen, fb: 'all', fr: 'all'};
+  const excl = (setOf(T).excluded || []);
+  R = {T, last, allGuests: guests, guests: guests.filter(g => excl.indexOf(g) < 0), excluded: excl.filter(g => guests.indexOf(g) >= 0), role, kitchen: r.kitchen, fb: 'all', fr: 'all'};
   renderResults();
 }
 function recOf(a){ const g = String(a['Гостю'] || '').toLowerCase(); if (g) return g; const m = String(a['Комментарий'] || '').match(/^Рекомендую гостю: (да|нет)/); return m ? m[1] : ''; }
@@ -583,11 +623,12 @@ function renderResults(){
   const stats = {};
   T.dishes.forEach(d => {
     const cr = critOf(T, d); const per = [];
-    G.forEach(g => { const a = last[g + '|' + d.n]; if (a) per.push({g, a, sc: Object.fromEntries(cr.map(c => [c, num(a[c])])), rec: recOf(a), cm: commentOf(a), por: a['Порция'] || ''}); });
+    G.forEach(g => { const a = last[g + '|' + d.n]; if (a){ const ex = extraOf(a); per.push({g, a, skip: !!ex.skip, jar: ex.jar || {}, sc: Object.fromEntries(cr.map(c => [c, ex.skip ? null : num(a[c])])), rec: ex.skip ? '' : recOf(a), cm: commentOf(a), por: ex.skip ? '' : (a['Порция'] || '')}); } });
     const cav = {}; let all = [];
     cr.forEach(c => { const v = per.map(p => p.sc[c]).filter(Boolean); cav[c] = mean(v); all = all.concat(v); });
     const por = {}; PORTIONS.forEach(p => por[p] = per.filter(x => x.por === p).length);
-    stats[d.n] = {cr, per, cav, avg: mean(all), yes: per.filter(p => p.rec === 'да').length, no: per.filter(p => p.rec === 'нет').length, por};
+    const jars = jarOf(T, d).map(j => ({j, c: Object.fromEntries(JAR_VALS.map(v => [v, per.filter(p => p.jar[j] === v).length]))}));
+    stats[d.n] = {cr, per, cav, avg: mean(all), yes: per.filter(p => p.rec === 'да').length, no: per.filter(p => p.rec === 'нет').length, por, skip: per.filter(p => p.skip).length, jars};
   });
   const blocks = []; T.dishes.forEach(d => { if (blocks.indexOf(d.block) < 0) blocks.push(d.block); });
   const roles = ROLES.filter(r => guests.some(g => role[g] === r));
@@ -598,8 +639,9 @@ function renderResults(){
   const sigs = blocks.slice(0, 2).map(b => { const x = (T.blocks || []).find(y => y.name === b); return x ? x.signature : ''; });
   h += '<div class="who"><div class="chef">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p>' + esc(sigs[0] || T.signature || '') + '</p></div>' + (sigs[1] ? '<p style="text-align:right">' + esc(sigs[1]) + '</p>' : '') + '</div>';
   h += '<p class="ppl">Оценивали: ' + (G.map(g => esc(g) + (role[g] ? ' (' + esc(role[g]) + ')' : '')).join(', ') || 'пока никто') + '</p>';
+  if (R.excluded.length) h += '<p class="ppl">Исключены из расчёта: ' + esc(R.excluded.join(', ')) + '</p>';
   const inv = (T.participants || []).filter(p => p.name);
-  if (inv.length){ const miss = inv.filter(p => guests.indexOf(p.name) < 0).map(p => p.name); h += '<p class="ppl">Отправили ' + inv.filter(p => guests.indexOf(p.name) >= 0).length + ' из ' + inv.length + (miss.length ? ' · ещё не отправили: ' + esc(miss.join(', ')) : '') + '</p>'; }
+  if (inv.length){ const AG = R.allGuests; const miss = inv.filter(p => AG.indexOf(p.name) < 0).map(p => p.name); h += '<p class="ppl">Отправили ' + inv.filter(p => AG.indexOf(p.name) >= 0).length + ' из ' + inv.length + (miss.length ? ' · ещё не отправили: ' + esc(miss.join(', ')) : '') + '</p>'; }
   h += '</header>';
   if (blocks.length > 1 || roles.length > 1){
     h += '<nav class="flt">';
@@ -615,13 +657,15 @@ function renderResults(){
     h += '<div class="orn"><i></i></div><section class="block"><h2 class="bh">' + esc(b || 'Позиции') + '</h2><p class="bsub">' + esc([bb.signature, critOf(T, {block: b}).join(' – ')].filter(Boolean).join(' · ')) + '</p>';
     T.dishes.filter(d => d.block === b).forEach(d => {
       const s = stats[d.n];
-      h += '<article class="dish">' + photoTag(d.photo, d.photoId, 'ph', d.name) + '<div class="dhead"><p class="lab">' + esc(labelOf(T, d)) + '</p><div class="tt"><h3>' + esc(d.name) + '</h3><div class="score"><b>' + fmt(s.avg) + '</b><span>из 5</span></div></div>';
+      h += '<article class="dish">' + photoTag(d.photo, d.photoId, 'ph', d.name) + '<div class="dhead"><p class="lab">' + esc(labelOf(T, d)) + '</p><div class="tt"><h3>' + esc(d.name) + '</h3><div class="score"><b>' + fmt(s.avg) + '</b><span>из 5</span></div></div>' + (isBlind(T) ? '<p class="rec">В анкете – образец ' + esc(codeOf(T, d)) + '</p>' : '');
       if (d.desc) h += '<p class="desc">' + esc(d.desc) + '</p>';
       if (s.yes + s.no) h += '<p class="rec">Порекомендовали бы гостю: <b>' + s.yes + ' из ' + (s.yes + s.no) + '</b></p>';
+      if (s.skip) h += '<p class="rec">Не пробовали: <b>' + s.skip + '</b></p>';
       h += '</div><div class="body"><div class="crits">' + s.cr.map(c => '<div class="cr"><span>' + esc(c) + '</span>' + bar(s.cav[c]) + '<b>' + fmt(s.cav[c]) + '</b></div>').join('') + '</div>';
-      if (PORTIONS.some(p => s.por[p])) h += '<div class="portion">' + PORTIONS.map(p => '<span><b>' + s.por[p] + '</b>' + p.toLowerCase() + '</span>').join('') + '</div>';
+      if (PORTIONS.some(p => s.por[p])) h += '<p class="sub" style="margin:12px 0 0">Порция</p><div class="portion" style="margin-top:6px">' + PORTIONS.map(p => '<span><b>' + s.por[p] + '</b>' + p.toLowerCase() + '</span>').join('') + '</div>';
+      s.jars.forEach(x => { if (JAR_VALS.some(v => x.c[v])) h += '<p class="sub" style="margin:12px 0 0">' + esc(x.j) + '</p><div class="portion" style="margin-top:6px">' + JAR_VALS.map(v => '<span' + (v !== 'в самый раз' && x.c[v] >= 2 ? ' style="background:rgba(192,57,43,.12);color:var(--bad)"' : '') + '><b>' + x.c[v] + '</b>' + v + '</span>').join('') + '</div>'; });
       h += '<div class="tw"><table><thead><tr><th>Участник</th>' + s.cr.map(c => '<th>' + esc(c) + '</th>').join('') + '<th>Порция</th><th>Гостю</th></tr></thead><tbody>';
-      s.per.forEach(p => { h += '<tr><td class="nm">' + esc(p.g) + (role[p.g] ? '<small>' + esc(role[p.g]) + '</small>' : '') + '</td>' + s.cr.map(c => '<td class="s' + (p.sc[c] || 0) + '">' + (p.sc[c] || '–') + '</td>').join('') + '<td>' + esc((p.por || '–').toLowerCase()) + '</td><td class="r' + (p.rec || '–') + '">' + (p.rec || '–') + '</td></tr>'; });
+      s.per.forEach(p => { h += '<tr><td class="nm">' + esc(p.g) + (role[p.g] ? '<small>' + esc(role[p.g]) + '</small>' : '') + '</td>' + (p.skip ? '<td colspan="' + (s.cr.length + 2) + '" class="s0">не пробовал(а)</td>' : s.cr.map(c => '<td class="s' + (p.sc[c] || 0) + '">' + (p.sc[c] || '–') + '</td>').join('') + '<td>' + esc((p.por || '–').toLowerCase()) + '</td><td class="r' + (p.rec || '–') + '">' + (p.rec || '–') + '</td>') + '</tr>'; });
       if (!s.per.length) h += '<tr><td class="nm" colspan="' + (s.cr.length + 3) + '">Оценок пока нет</td></tr>';
       h += '</tbody></table></div>';
       const cm = s.per.filter(p => p.cm);
@@ -704,13 +748,14 @@ async function viewEditor(id){
     const nums = cat.map(t => Number((t.id.match(/(\d+)$/) || [])[1]) || 0);
     W = {isNew: true, step: 0, projects, greetEdited: false, titleEdited: false,
       T: {id: 'dg-' + String(Math.max(0, ...nums) + 1).padStart(2, '0'), project: (cat[0] && cat[0].project) || '', date: todayText(), title: '', greeting: '', chefPhoto: '', chefPhotoId: '', open: true},
-      P: [{role: 'Шеф-повар', name: ''}], D: [], parts: [], products: ''};
+      P: [{role: 'Шеф-повар', name: '', jar: ['Соль','Сладость','Кислотность']}], D: [], parts: [], products: '', blind: false, codes: {}};
   } else {
     const P = (T.blocks || []).map(b => { const pr = ROLE_PRESETS.find(x => (b.signature || '').indexOf(x.role) === 0 || x.block === b.name); const sig = b.signature || '';
       return pr ? {role: pr.role, name: sig.indexOf(pr.role) === 0 ? sig.slice(pr.role.length).trim() : sig, block: b.name, criteria: b.criteria} : {role: b.name || 'Другое', name: sig, block: b.name, criteria: b.criteria}; });
     if (!P.length) P.push({role: 'Шеф-повар', name: (T.signature || '').replace(/^Шеф-повар\s*/, '')});
     const D = T.dishes.map(d => ({pi: Math.max(0, (T.blocks || []).findIndex(b => b.name === d.block)), name: d.name || '', desc: d.desc || '', allergens: d.allergens || '', section: d.section || '', photo: d.photoId || (d.photo && d.photo.indexOf('thumbnail') < 0 ? d.photo : ''), _ph: d.photo || ''}));
-    W = {isNew: false, step: 0, projects, greetEdited: true, titleEdited: true,
+    const st = T.settings || {}; P.forEach(p => { p.jar = (st.jar || {})[p.block] || []; });
+    W = {isNew: false, step: 0, projects, greetEdited: true, titleEdited: true, blind: !!st.blind, codes: st.codes || {},
       T: {id: T.id, project: T.project || '', date: T.date || '', title: T.title || '', greeting: T.greeting || '', chefPhoto: T.chefPhoto || '', chefPhotoId: '', open: T.open},
       P, D, parts: (T.participants || []).map(p => ({name: p.name, role: p.role || ''})), products: ''};
   }
@@ -729,7 +774,8 @@ function renderWizard(){
       h += '<div class="pos-ed" data-p="' + i + '"><div class="hd"><span>' + (i + 1) + '</span>' + (P.length > 1 ? '<button class="x" data-delp="' + i + '">×</button>' : '') + '</div>' +
         '<div class="chips" data-prole="' + i + '" style="margin-bottom:10px">' + ROLE_PRESETS.map(r => '<button type="button" data-v="' + r.role + '"' + (p.role === r.role ? ' class="on"' : '') + '>' + r.role + '</button>').join('') + '<button type="button" data-v="__other"' + (other ? ' class="on"' : '') + '>Другое</button></div>' +
         (other ? '<div class="f"><label class="l">Роль</label><input type="text" data-pf="role" placeholder="Например, кондитер" value="' + esc(p.role === 'Другое' ? '' : p.role) + '"></div>' : '') +
-        '<div class="f" style="margin:0"><label class="l">Имя</label><input type="text" data-pf="name" placeholder="Имя и фамилия" value="' + esc(p.name) + '"></div></div>';
+        '<div class="f"><label class="l">Имя</label><input type="text" data-pf="name" placeholder="Имя и фамилия" value="' + esc(p.name) + '"></div>' +
+        '<label class="l">Шкала «мало – в самый раз – много»</label><div class="chips" data-pjar="' + i + '">' + JAR_OPTS.map(j => '<button type="button" data-v="' + j + '"' + ((p.jar || []).indexOf(j) >= 0 ? ' class="on"' : '') + '>' + j + '</button>').join('') + '</div></div>';
     });
     h += '<div class="row"><button class="btn sm" id="add-p">+ Ещё человек</button></div>';
     h += '<div class="f" style="margin-top:16px"><label class="l">Фото для шапки анкеты – по желанию</label><div class="row">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" style="width:56px;height:56px;border-radius:50%;object-fit:cover" onerror="this.remove()">' : '') + '<button class="btn sm" id="w-chef">' + (T.chefPhoto ? 'Заменить' : 'Загрузить') + '</button><span class="sub" id="w-chef-st" style="margin:0"></span></div></div>';
@@ -740,6 +786,7 @@ function renderWizard(){
     h += '<div class="f"><label class="l">Название</label><input type="text" id="w-title" value="' + esc(T.title || autoTitle(P)) + '"></div>';
   }
   if (W.step === 2){
+    h += '<div class="qrow" style="border-top:0;padding-top:0;margin-bottom:16px"><span><b>Слепая дегустация</b><br><span class="sub">Участники видят только номер образца, названия и описания – в итогах</span></span><div class="chips"><button type="button" id="w-blind"' + (W.blind ? ' class="on"' : '') + '>' + (W.blind ? 'Включена' : 'Выключена') + '</button></div></div>';
     P.forEach((p, pi) => {
       const pr = presetOf(p.role);
       h += '<h3 style="margin-top:' + (pi ? '22px' : '0') + '">' + esc((p.role + ' ' + p.name).trim()) + '</h3><p class="sub">Позиции в порядке подачи</p>';
@@ -788,8 +835,10 @@ function wireWizard(){
     if (W.step === 0 && !W.titleEdited) T.title = autoTitle(P);
     W.step++; renderWizard(); window.scrollTo(0, 0);
   };
-  $$('[data-prole] button').forEach(b => b.onclick = () => { syncWizard(); const p = P[b.parentNode.dataset.prole]; p.role = b.dataset.v === '__other' ? 'Другое' : b.dataset.v; renderWizard(); });
-  if ($('#add-p')) $('#add-p').onclick = () => { syncWizard(); const used = P.map(p => p.role); const nx = ROLE_PRESETS.find(r => used.indexOf(r.role) < 0); P.push({role: nx ? nx.role : 'Другое', name: ''}); renderWizard(); };
+  $$('[data-prole] button').forEach(b => b.onclick = () => { syncWizard(); const p = P[b.parentNode.dataset.prole]; p.role = b.dataset.v === '__other' ? 'Другое' : b.dataset.v; const pr = presetOf(p.role); p.jar = pr ? pr.jar.slice() : ['Сладость','Соль','Кислотность']; renderWizard(); });
+  $$('[data-pjar] button').forEach(b => b.onclick = () => { syncWizard(); const p = P[b.parentNode.dataset.pjar]; p.jar = p.jar || []; const i = p.jar.indexOf(b.dataset.v); if (i >= 0) p.jar.splice(i, 1); else p.jar.push(b.dataset.v); renderWizard(); });
+  if ($('#w-blind')) $('#w-blind').onclick = () => { syncWizard(); W.blind = !W.blind; renderWizard(); };
+  if ($('#add-p')) $('#add-p').onclick = () => { syncWizard(); const used = P.map(p => p.role); const nx = ROLE_PRESETS.find(r => used.indexOf(r.role) < 0); P.push({role: nx ? nx.role : 'Другое', name: '', jar: nx ? nx.jar.slice() : ['Сладость','Соль','Кислотность']}); renderWizard(); };
   $$('[data-delp]').forEach(b => b.onclick = () => { syncWizard(); const i = Number(b.dataset.delp); P.splice(i, 1); W.D = D.filter(d => d.pi !== i).map(d => Object.assign(d, {pi: d.pi > i ? d.pi - 1 : d.pi})); renderWizard(); });
   if ($('#w-chef')) $('#w-chef').onclick = async () => { syncWizard(); const [f] = await pickFile(false); if (!f) return; $('#w-chef-st').textContent = 'Загружаем';
     try { const r = await uploadPhoto(f, T.id + '-chef'); T.chefPhotoId = r.id; T.chefPhoto = URL.createObjectURL(f); renderWizard(); } catch(e){ $('#w-chef-st').textContent = 'Не загрузилось'; } };
@@ -814,7 +863,10 @@ async function saveWizard(){
     return {name, signature: (p.role + ' ' + p.name).trim(), criteria: p.criteria && p.criteria.length ? p.criteria : (pr ? pr.criteria : KC)}; });
   const dishes = D.filter(d => d.name).sort((a, b) => a.pi - b.pi).map((d, i) => { const pr = presetOf(P[d.pi].role);
     return {n: i + 1, block: blocks[d.pi].name, section: d.section || '', name: d.name, desc: d.desc, allergens: d.allergens, photo: d.photo || ''}; });
+  const jar = {}; blocks.forEach((b, i) => { jar[b.name] = P[i].jar || []; });
+  const codes = {}; if (W.blind){ const used = {}; dishes.forEach(d => { let c = W.codes[d.n]; while (!c || used[c]) c = String(100 + Math.floor(Math.random() * 900)); used[c] = 1; codes[d.n] = c; }); }
   const data = {id: T.id, project: T.project, participants: W.parts.filter(p => p.name), date: T.date, title: T.title || autoTitle(P),
+    settings: {jar, blind: W.blind, codes},
     greeting: T.greeting || autoGreeting(T, P, D), signature: blocks[0].signature, active: W.isNew ? true : !!T.open, chefPhoto: T.chefPhotoId || '', blocks, dishes};
   btn.disabled = true; btn.textContent = 'Сохраняем'; err.textContent = '';
   try {
@@ -885,6 +937,7 @@ function renderKitchen(){
 }
 
 route();
+queueFlush();
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 </script>
 </body>
