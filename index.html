@@ -255,7 +255,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '7 от 23.09.2026';
+const APP_VERSION = '8 от 23.09.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -418,7 +418,8 @@ async function viewTasting(id){
   h += '<a class="card" href="#/r/' + esc(T.id) + '" style="display:flex;align-items:center;gap:16px;text-decoration:none;background:var(--grad-navy);color:#fff;border:0">' +
     '<div class="score" style="min-width:76px"><b>' + (avgAll != null ? fmt(avgAll) : '–') + '</b><span>из 5</span></div>' +
     '<div style="flex:1"><h3 style="color:#fff">Итоги</h3><p style="margin:4px 0 0;font-size:13px;color:#D8DCE6">' + (sent.length ? 'Заполнили ' + sent.length + (inv.length ? ' из ' + inv.length : '') + ' – нажмите, чтобы открыть' : 'Пока никто не заполнил') + '</p></div>' +
-    '<span style="font-size:26px;color:var(--sand)">&#8250;</span></a>';
+    '<span style="font-size:26px;color:var(--sand)">&#8250;</span></a>' +
+    (sent.length ? '<div class="row" style="margin-top:10px"><button class="btn sm pri" id="t-rshare2">Отправить итоги в мессенджер</button></div>' : '');
   const stepHead = (n, t, s) => '<div style="display:flex;gap:12px;align-items:flex-start"><span style="flex:0 0 34px;height:34px;border-radius:50%;background:var(--grad-or);color:#fff;font:600 18px/34px var(--serif);text-align:center">' + n + '</span><div style="flex:1"><h3>' + t + '</h3><p class="sub" style="margin:4px 0 12px">' + s + '</p></div></div>';
   // 1
   h += '<section class="card">' + stepHead(1, 'Ссылка на анкету', 'Отправьте коллегам – откроется в браузере телефона') +
@@ -442,20 +443,21 @@ async function viewTasting(id){
   // 3
   h += '<section class="card">' + stepHead(3, 'Итоги', 'Собираются сами из анкет – обновляются с каждой отправкой') +
     '<p class="lnk" style="text-align:left;margin:0 0 12px">' + esc(rurl) + '</p>' +
-    '<div class="row"><a class="btn sm pri" href="#/r/' + esc(T.id) + '">Открыть итоги</a><button class="btn sm" id="t-rshare">Отправить итоги</button><button class="btn sm" id="t-rcopy">Скопировать ссылку</button><button class="btn sm" id="t-tg">Сводка в Telegram</button></div>' +
+    '<div class="row"><a class="btn sm pri" href="#/r/' + esc(T.id) + '">Открыть итоги</a><button class="btn sm" id="t-rshare">Отправить итоги в мессенджер</button><button class="btn sm" id="t-rcopy">Скопировать ссылку</button><button class="btn sm" id="t-tg">Сводка в Telegram</button></div>' +
     (sent.length ? '<p class="sub" style="margin:16px 0 6px">Кто участвует в расчёте – нажмите на имя, чтобы исключить или вернуть</p><div class="chips" id="t-excl">' + sent.map(n => '<button type="button" data-v="' + esc(n) + '"' + (excl.indexOf(n) < 0 ? ' class="on"' : '') + '>' + esc(n) + '</button>').join('') + '</div>' : '') +
     '<p class="sub" id="t-note" style="margin:10px 0 0"></p></section>';
   app.innerHTML = h;
   const copy = (txt, b, done) => { const ok = () => { b.textContent = done; }; if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok, () => {}); else ok(); };
   const tt = Object.assign({}, T, {project: projOf(T)});
   $('#t-ref').onclick = () => viewTasting(T.id);
+  if ($('#t-rshare2')) $('#t-rshare2').onclick = () => shareText(resultsText(T, r.answers), $('#t-rshare2'));
   $('#t-phtoggle').onclick = () => { const x = $('#t-dishes'); x.hidden = !x.hidden; $('#t-phtoggle').textContent = x.hidden ? (withPh ? 'Показать позиции и фото' : 'Добавить фото позиций') : 'Скрыть список'; };
   $('#t-copy').onclick = () => copy(url, $('#t-copy'), 'Ссылка скопирована');
   $('#t-msg').onclick = () => copy(inviteText(tt, url), $('#t-msg'), 'Приглашение скопировано');
   $('#t-share').onclick = () => { const m = inviteText(tt, url); if (navigator.share) navigator.share({text: m}).catch(() => {}); else copy(m, $('#t-share'), 'Скопировано'); };
   $('#t-qr').onclick = () => showQR(T.id, tt);
   $('#t-rcopy').onclick = () => copy(rurl, $('#t-rcopy'), 'Ссылка скопирована');
-  $('#t-rshare').onclick = () => { const m = 'Итоги дегустации – ' + (T.title || '') + (T.date ? ', ' + T.date : '') + ':\n' + rurl; if (navigator.share) navigator.share({text: m}).catch(() => {}); else copy(m, $('#t-rshare'), 'Скопировано'); };
+  $('#t-rshare').onclick = () => shareText(resultsText(T, r.answers), $('#t-rshare'));
   $('#t-open').onclick = async () => { const b = $('#t-open'); b.disabled = true; b.textContent = 'Сохраняем'; const r2 = await apiPost({action:'setOpen', pin: pin(), t: T.id, open: !T.open}).catch(() => ({})); await viewTasting(T.id);
     if (T.open && r2 && r2.telegram) $('#t-note').textContent = r2.telegram.ok ? 'Анкета закрыта, сводка отправлена в Telegram.' : (r2.telegram.error === 'telegram_not_configured' ? 'Анкета закрыта. Telegram ещё не подключён.' : 'Анкета закрыта. Сводка в Telegram не ушла.'); };
   $('#t-tg').onclick = async () => { const b = $('#t-tg'); b.disabled = true; b.textContent = 'Отправляем'; const r2 = await apiPost({action:'notify', pin: pin(), t: T.id}).catch(() => ({})); b.disabled = false;
@@ -606,6 +608,33 @@ function thanks(T, queued){
   app.innerHTML = '<div class="thanks">' + (T.chefPhoto ? '<img class="chefbig" src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="letter">Благодарю вас за участие в дегустации.</p><p class="sign" style="color:var(--or2)">' + esc(T.signature || '') + '</p>' + (queued ? '<p class="sub" id="qnote" style="margin-top:16px">Интернета сейчас нет – оценки сохранены на телефоне и отправятся сами, когда появится связь. Страницу можно закрыть, но лучше открыть её ещё раз при сети.</p>' : '') + '</div>';
 }
 
+
+function resultsText(T, answers){
+  const excl = setOf(T).excluded || [];
+  const last = {}; answers.forEach(a => { if (excl.indexOf(a['Гость']) < 0) last[a['Гость'] + '|' + a['№']] = a; });
+  const guests = []; Object.values(last).forEach(a => { if (guests.indexOf(a['Гость']) < 0 && a['Блюдо'] !== 'Итог') guests.push(a['Гость']); });
+  const rows = T.dishes.map(d => { let all = [], skip = 0; const jar = {};
+    Object.values(last).filter(a => Number(a['№']) === Number(d.n)).forEach(a => { const ex = extraOf(a); if (ex.skip) { skip++; return; }
+      critOf(T, d).forEach(c => { const v = num(a[c]); if (v) all.push(v); });
+      Object.keys(ex.jar || {}).forEach(k => { const v = ex.jar[k]; if (v && v !== 'в самый раз') jar[k + ' – ' + v] = (jar[k + ' – ' + v] || 0) + 1; }); });
+    return {d, avg: mean(all), skip, jar}; }).sort((a, b) => (b.avg || 0) - (a.avg || 0));
+  const L = ['Итоги дегустации – ' + (T.title || '') + ' · ' + projOf(T)];
+  if (T.date) L.push(T.date);
+  L.push('Участников: ' + guests.length);
+  L.push('');
+  rows.forEach((x, i) => L.push((i + 1) + '. ' + x.d.name + ' – ' + fmt(x.avg) + (x.skip ? ' (не пробовали: ' + x.skip + ')' : '')));
+  const weak = rows.filter(x => x.avg != null && x.avg < 3.5);
+  if (weak.length) { L.push(''); L.push('Ниже 3,5: ' + weak.map(x => x.d.name).join(', ')); }
+  const jl = rows.filter(x => Object.keys(x.jar).some(k => x.jar[k] >= 2));
+  if (jl.length) { L.push(''); jl.forEach(x => L.push(x.d.name + ': ' + Object.keys(x.jar).filter(k => x.jar[k] >= 2).map(k => k + ' (' + x.jar[k] + ')').join(', '))); }
+  L.push(''); L.push('Подробно, с фото и комментариями: ' + linkRes(T.id));
+  return L.join('\n');
+}
+function shareText(text, btn){
+  if (navigator.share) { navigator.share({text}).catch(() => {}); return; }
+  const ok = () => { if (btn) btn.textContent = 'Скопировано – вставьте в чат'; };
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(ok, ok); else ok();
+}
 /* ---------------- итоги ---------------- */
 let R = null;
 async function viewResults(id){
@@ -618,7 +647,7 @@ async function viewResults(id){
   Object.values(last).forEach(a => { if (guests.indexOf(a['Гость']) < 0) guests.push(a['Гость']); if (a['Роль']) role[a['Гость']] = a['Роль']; });
   (T.participants || []).forEach(p => { if (p.name && p.role && !role[p.name]) role[p.name] = p.role; });
   const excl = (setOf(T).excluded || []);
-  R = {T, last, allGuests: guests, guests: guests.filter(g => excl.indexOf(g) < 0), excluded: excl.filter(g => guests.indexOf(g) >= 0), role, kitchen: r.kitchen, fb: 'all', fr: 'all'};
+  R = {T, last, answers: r.answers, allGuests: guests, guests: guests.filter(g => excl.indexOf(g) < 0), excluded: excl.filter(g => guests.indexOf(g) >= 0), role, kitchen: r.kitchen, fb: 'all', fr: 'all'};
   renderResults();
 }
 function recOf(a){ const g = String(a['Гостю'] || '').toLowerCase(); if (g) return g; const m = String(a['Комментарий'] || '').match(/^Рекомендую гостю: (да|нет)/); return m ? m[1] : ''; }
@@ -645,6 +674,7 @@ function renderResults(){
   h += '<div class="kpis"><div><b>' + G.length + '</b><span>участников</span></div>' + blocks.slice(0, 2).map(b => '<div><b>' + fmt(bAvg(b)) + '</b><span>' + esc((b || 'позиции').toLowerCase()) + ', средний балл</span></div>').join('') + '</div>';
   const sigs = blocks.slice(0, 2).map(b => { const x = (T.blocks || []).find(y => y.name === b); return x ? x.signature : ''; });
   h += '<div class="who"><div class="chef">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p>' + esc(sigs[0] || T.signature || '') + '</p></div>' + (sigs[1] ? '<p style="text-align:right">' + esc(sigs[1]) + '</p>' : '') + '</div>';
+  h += '<p style="margin:16px 0 0"><button class="btn pri" id="r-share">Отправить итоги в мессенджер</button></p>';
   h += '<p class="ppl">Оценивали: ' + (G.map(g => esc(g) + (role[g] ? ' (' + esc(role[g]) + ')' : '')).join(', ') || 'пока никто') + '</p>';
   if (R.excluded.length) h += '<p class="ppl">Исключены из расчёта: ' + esc(R.excluded.join(', ')) + '</p>';
   const inv = (T.participants || []).filter(p => p.name);
@@ -697,6 +727,7 @@ function renderResults(){
   h += kitchenBlock(R.kitchen);
   h += '<footer>Дегустационный лист ' + esc(projOf(T)) + ' · ' + G.length + ' участников</footer>';
   app.innerHTML = h;
+  $('#r-share').onclick = () => shareText(resultsText(T, R.answers), $('#r-share'));
   $$('.flt [data-fb] button').forEach(b => b.onclick = () => { R.fb = b.dataset.v; renderResults(); });
   $$('.flt [data-fr] button').forEach(b => b.onclick = () => { R.fr = b.dataset.v; renderResults(); });
 }
