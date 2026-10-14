@@ -799,7 +799,7 @@ async function viewEditor(id){
     const D = T.dishes.map(d => ({pi: Math.max(0, (T.blocks || []).findIndex(b => b.name === d.block)), name: d.name || '', desc: d.desc || '', allergens: d.allergens || '', section: d.section || '', photo: d.photoId || (d.photo && d.photo.indexOf('thumbnail') < 0 ? d.photo : ''), _ph: d.photo || ''}));
     const st = T.settings || {}; P.forEach(p => { p.jar = (st.jar || {})[p.block] || []; });
     W = {isNew: false, step: 0, projects, greetEdited: true, titleEdited: true, blind: !!st.blind, codes: st.codes || {},
-      T: {id: T.id, project: T.project || '', date: T.date || '', title: T.title || '', greeting: T.greeting || '', chefPhoto: T.chefPhoto || '', chefPhotoId: '', open: T.open},
+      T: {id: T.id, project: T.project || '', date: T.date || '', title: T.title || '', greeting: T.greeting || '', chefPhoto: T.chefPhoto || '', chefPhotoId: T.chefPhotoId || (T.chefPhoto && T.chefPhoto.indexOf('thumbnail') < 0 ? T.chefPhoto : ''), open: T.open},
       P, D, parts: (T.participants || []).map(p => ({name: p.name, role: p.role || ''})), products: ''};
   }
   renderWizard();
