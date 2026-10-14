@@ -789,6 +789,7 @@ async function viewEditor(id, preset){
     if (preset === 'ari'){
       const bar = ROLE_PRESETS.find(x => x.role === 'Шеф-бармен');
       W.T.project = 'DIO Grand Cafe';
+      W.T.date = W.T.date.replace(/, \d{1,2}:\d{2}$/, ', 16:00');
       W.P = [{role: 'Шеф-бармен', name: 'Ари', jar: bar.jar.slice()}];
       W.D = ['Сад Гесперид','Гименей','Нектар Диониса','Дельфийский оракул','Сизиф','Тирс','Посейдон & Амфитрита','Дар Афины','Горячий и белый шоколад','Горячий шоколад','Сад Геры','Пурпур Гекаты','Роса Афродиты']
         .map(n => ({pi: 0, name: n, desc: n === 'Сад Геры' ? 'Безалкогольный' : '', allergens: '', section: '', photo: ''}));
