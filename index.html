@@ -260,7 +260,7 @@ const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxog
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
 const BC = ['Внешний вид','Аромат','Вкус','Баланс','Температура подачи','Общее впечатление'];
-const ROLES = ['Акционер','УК','Персонал'];
+const ROLES = ['Акционер','УК','Финансовый директор','Бухгалтер материального стола'];
 const PORTIONS = ['Мало','Норма','Много'];
 const app = document.getElementById('app');
 const $ = (s, r) => (r || document).querySelector(s);
@@ -488,7 +488,7 @@ async function viewForm(id){
   F = {T, sentKey, draftKey, answers:{}, fin:{best:'', fix:'', overall:''}, role:'', guest:'', confirm:false};
   T.dishes.forEach(d => F.answers[d.n] = {scores:{}, comment:'', recommend:'', portion:'', jar:{}, skip:false});
   const dr = store.get(draftKey);
-  if (dr){ Object.keys(dr.answers || {}).forEach(n => { if (F.answers[n]) Object.assign(F.answers[n], dr.answers[n]); }); Object.assign(F.fin, dr.fin || {}); F.role = dr.role || ''; F.guest = dr.guest || ''; }
+  if (dr){ Object.keys(dr.answers || {}).forEach(n => { if (F.answers[n]) Object.assign(F.answers[n], dr.answers[n]); }); Object.assign(F.fin, dr.fin || {}); F.role = dr.role || ''; F.guest = dr.guest || ''; F.roleOther = !!F.role && ROLES.indexOf(F.role) < 0; }
   renderForm();
 }
 function saveDraft(){ store.set(F.draftKey, {answers: F.answers, fin: F.fin, role: F.role, guest: F.guest}); }
@@ -508,7 +508,7 @@ function renderForm(){
   }
   h += '<div class="f"' + (P.length && (inList || !F.guest) && !F.other ? ' hidden' : '') + ' id="guestbox"><label class="l" for="guest">Ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="off" value="' + esc(inList ? '' : F.guest) + '"></div>';
   const me = P.find(p => p.name === F.guest);
-  h += '<div id="rolebox"' + (me && me.role ? ' hidden' : '') + '><label class="l">Ваша роль</label><div class="chips" data-role>' + ROLES.map(r => '<button type="button" data-v="' + r + '"' + (F.role === r ? ' class="on"' : '') + '>' + r + '</button>').join('') + '</div></div></div>';
+  h += '<div id="rolebox"' + (me && me.role ? ' hidden' : '') + '><label class="l">Ваша роль</label><div class="chips" data-role>' + ROLES.map(r => '<button type="button" data-v="' + r + '"' + (F.role === r && !F.roleOther ? ' class="on"' : '') + '>' + r + '</button>').join('') + '<button type="button" data-v="__other"' + (F.roleOther ? ' class="on"' : '') + '>Другое</button></div>' + (F.roleOther ? '<div class="f" style="margin-top:12px"><label class="l" for="roleown">&#9998; Впишите вашу роль</label><input type="text" id="roleown" maxlength="60" autocomplete="off" value="' + esc(F.role) + '"></div>' : '') + '</div></div>';
   let prev = null;
   T.dishes.forEach((d, i) => {
     if (i > 0 && d.block && d.block !== prev){
@@ -542,12 +542,15 @@ function renderForm(){
     const box = b.parentNode; const v = b.dataset.v;
     if (box.dataset.who !== undefined){
       const p = (F.T.participants || []).find(x => x.name === v);
-      if (p){ F.guest = p.name; F.role = p.role || F.role; F.other = false; } else { F.guest = ''; F.other = true; }
+      if (p){ F.guest = p.name; if (p.role){ F.role = p.role; F.roleOther = false; } F.other = false; } else { F.guest = ''; F.other = true; }
       saveDraft(); renderForm(); return;
     }
     if (box.dataset.skip !== undefined){ const sec = b.closest('.dish'); const a = F.answers[sec.dataset.n]; a.skip = !a.skip; b.classList.toggle('on', a.skip); sec.classList.toggle('skip', a.skip); F.confirm = false; progress(); saveDraft(); return; }
     if (box.dataset.jar){ const a = F.answers[b.closest('.dish').dataset.n]; a.jar = a.jar || {}; a.jar[box.dataset.jar] = a.jar[box.dataset.jar] === v ? '' : v; $$('button', box).forEach(x => x.classList.toggle('on', x.dataset.v === a.jar[box.dataset.jar])); saveDraft(); return; }
-    if (box.dataset.role !== undefined){ F.role = v; }
+    if (box.dataset.role !== undefined){
+      if (v === '__other'){ F.roleOther = true; F.role = ''; } else { F.roleOther = false; F.role = v; }
+      saveDraft(); renderForm(); if (v === '__other'){ const ro = $('#roleown'); if (ro) ro.focus(); } return;
+    }
     else if (box.dataset.fin){ F.fin[box.dataset.fin] = F.fin[box.dataset.fin] === v ? '' : v; }
     else if (box.dataset.q){ const a = F.answers[b.closest('.dish').dataset.n]; a[box.dataset.q] = a[box.dataset.q] === v ? '' : v; }
     else if (box.dataset.c){ F.answers[b.closest('.dish').dataset.n].scores[box.dataset.c] = Number(v); }
@@ -557,6 +560,7 @@ function renderForm(){
   };
   app.oninput = e => {
     if (e.target.id === 'guest') F.guest = e.target.value;
+    else if (e.target.id === 'roleown') F.role = e.target.value;
     else if (e.target.id === 'overall') F.fin.overall = e.target.value;
     else if (e.target.dataset.cm !== undefined) F.answers[e.target.closest('.dish').dataset.n].comment = e.target.value;
     saveDraft();
@@ -572,7 +576,8 @@ async function sendForm(){
   const T = F.T, err = $('#err'), btn = $('#send');
   const guest = F.guest.trim();
   if (!guest){ err.textContent = 'Укажите ваше имя в начале страницы.'; $('#guest').focus(); return; }
-  if (!F.role){ err.textContent = 'Отметьте вашу роль в начале страницы.'; return; }
+  F.role = (F.role || '').trim();
+  if (!F.role){ err.textContent = 'Отметьте или впишите вашу роль в начале страницы.'; return; }
   const empty = T.dishes.filter(d => !F.answers[d.n].skip && critOf(T, d).some(c => !F.answers[d.n].scores[c])).map(d => (isBlind(T) ? shownName(T, d) : labelOf(T, d)).toLowerCase());
   if (empty.length && !F.confirm){ F.confirm = true; err.textContent = 'Не все оценки проставлены: ' + empty.join(', ') + '. Можно дополнить или нажать ещё раз, чтобы отправить как есть.'; btn.textContent = 'Отправить как есть'; return; }
   btn.disabled = true; btn.textContent = 'Отправляем'; err.textContent = '';
@@ -667,7 +672,7 @@ function renderResults(){
     stats[d.n] = {cr, per, cav, avg: mean(all), yes: per.filter(p => p.rec === 'да').length, no: per.filter(p => p.rec === 'нет').length, por, skip: per.filter(p => p.skip).length, jars};
   });
   const blocks = []; T.dishes.forEach(d => { if (blocks.indexOf(d.block) < 0) blocks.push(d.block); });
-  const roles = ROLES.filter(r => guests.some(g => role[g] === r));
+  const roles = []; guests.forEach(g => { if (role[g] && roles.indexOf(role[g]) < 0) roles.push(role[g]); }); roles.sort((a, b) => { const ia = ROLES.indexOf(a), ib = ROLES.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
   const bAvg = b => mean(T.dishes.filter(d => d.block === b).map(d => stats[d.n].avg).filter(x => x != null));
   app.className = 'res';
   let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span><a href="#/d/' + esc(T.id) + '">К дегустации</a></p><h1>Итоги дегустации</h1><p class="date">' + esc(T.date) + '</p>';
