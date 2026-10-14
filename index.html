@@ -508,7 +508,7 @@ function renderForm(){
   }
   h += '<div class="f"' + (P.length && (inList || !F.guest) && !F.other ? ' hidden' : '') + ' id="guestbox"><label class="l" for="guest">Ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="off" value="' + esc(inList ? '' : F.guest) + '"></div>';
   const me = P.find(p => p.name === F.guest);
-  h += '<div id="rolebox"' + (me && me.role ? ' hidden' : '') + '><label class="l">Ваша роль</label><div class="chips" data-role>' + ROLES.map(r => '<button type="button" data-v="' + r + '"' + (F.role === r && !F.roleOther ? ' class="on"' : '') + '>' + r + '</button>').join('') + '<button type="button" data-v="__other"' + (F.roleOther ? ' class="on"' : '') + '>Другое</button></div>' + (F.roleOther ? '<div class="f" style="margin-top:12px"><label class="l" for="roleown">&#9998; Впишите вашу роль</label><input type="text" id="roleown" maxlength="60" autocomplete="off" value="' + esc(F.role) + '"></div>' : '') + '</div></div>';
+  h += '<div id="rolebox"' + (me && me.role ? ' hidden' : '') + '><label class="l">Ваша роль</label><select id="rolesel"><option value=""' + (!F.role && !F.roleOther ? ' selected' : '') + ' disabled>Выберите роль</option>' + ROLES.map(r => '<option value="' + r + '"' + (F.role === r && !F.roleOther ? ' selected' : '') + '>' + r + '</option>').join('') + '<option value="__other"' + (F.roleOther ? ' selected' : '') + '>Другое</option></select>' + (F.roleOther ? '<div class="f" style="margin-top:12px"><label class="l" for="roleown">&#9998; Впишите вашу роль</label><input type="text" id="roleown" maxlength="60" autocomplete="off" value="' + esc(F.role) + '"></div>' : '') + '</div></div>';
   let prev = null;
   T.dishes.forEach((d, i) => {
     if (i > 0 && d.block && d.block !== prev){
@@ -557,6 +557,12 @@ function renderForm(){
     const cur = box.dataset.fin ? F.fin[box.dataset.fin] : box.dataset.q ? F.answers[b.closest('.dish').dataset.n][box.dataset.q] : box.dataset.c ? String(F.answers[b.closest('.dish').dataset.n].scores[box.dataset.c]) : F.role;
     $$('button', box).forEach(x => x.classList.toggle('on', x.dataset.v === cur));
     F.confirm = false; progress(); saveDraft();
+  };
+  app.onchange = e => {
+    if (e.target.id !== 'rolesel') return;
+    const v = e.target.value;
+    if (v === '__other'){ F.roleOther = true; F.role = ''; } else { F.roleOther = false; F.role = v; }
+    saveDraft(); renderForm(); if (v === '__other'){ const ro = $('#roleown'); if (ro) ro.focus(); }
   };
   app.oninput = e => {
     if (e.target.id === 'guest') F.guest = e.target.value;
