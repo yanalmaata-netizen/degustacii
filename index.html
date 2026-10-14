@@ -507,8 +507,7 @@ function renderForm(){
     h += '<label class="l">Пожалуйста, выберите ваше имя</label><div class="chips" data-who style="margin-bottom:14px">' + P.map(p => '<button type="button" data-v="' + esc(p.name) + '"' + (F.guest === p.name ? ' class="on"' : '') + '>' + esc(p.name) + '</button>').join('') + '<button type="button" data-v="__other"' + (F.guest && !inList ? ' class="on"' : '') + '>Другой участник</button></div>';
   }
   h += '<div class="f"' + (P.length && (inList || !F.guest) && !F.other ? ' hidden' : '') + ' id="guestbox"><label class="l" for="guest">Пожалуйста, напишите ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="off" value="' + esc(inList ? '' : F.guest) + '"></div>';
-  const me = P.find(p => p.name === F.guest);
-  h += '<div id="rolebox"' + (me && me.role ? ' hidden' : '') + '><label class="l">Ваша роль</label><select id="rolesel"><option value=""' + (!F.role && !F.roleOther ? ' selected' : '') + ' disabled>Выберите роль</option>' + ROLES.map(r => '<option value="' + r + '"' + (F.role === r && !F.roleOther ? ' selected' : '') + '>' + r + '</option>').join('') + '<option value="__other"' + (F.roleOther ? ' selected' : '') + '>Другое</option></select>' + (F.roleOther ? '<div class="f" style="margin-top:12px"><label class="l" for="roleown">&#9998; Впишите вашу роль</label><input type="text" id="roleown" maxlength="60" autocomplete="off" value="' + esc(F.role) + '"></div>' : '') + '</div></div>';
+  h += '</div>';
   let prev = null;
   T.dishes.forEach((d, i) => {
     if (i > 0 && d.block && d.block !== prev){
@@ -547,10 +546,6 @@ function renderForm(){
     }
     if (box.dataset.skip !== undefined){ const sec = b.closest('.dish'); const a = F.answers[sec.dataset.n]; a.skip = !a.skip; b.classList.toggle('on', a.skip); sec.classList.toggle('skip', a.skip); F.confirm = false; progress(); saveDraft(); return; }
     if (box.dataset.jar){ const a = F.answers[b.closest('.dish').dataset.n]; a.jar = a.jar || {}; a.jar[box.dataset.jar] = a.jar[box.dataset.jar] === v ? '' : v; $$('button', box).forEach(x => x.classList.toggle('on', x.dataset.v === a.jar[box.dataset.jar])); saveDraft(); return; }
-    if (box.dataset.role !== undefined){
-      if (v === '__other'){ F.roleOther = true; F.role = ''; } else { F.roleOther = false; F.role = v; }
-      saveDraft(); renderForm(); if (v === '__other'){ const ro = $('#roleown'); if (ro) ro.focus(); } return;
-    }
     else if (box.dataset.fin){ F.fin[box.dataset.fin] = F.fin[box.dataset.fin] === v ? '' : v; }
     else if (box.dataset.q){ const a = F.answers[b.closest('.dish').dataset.n]; a[box.dataset.q] = a[box.dataset.q] === v ? '' : v; }
     else if (box.dataset.c){ F.answers[b.closest('.dish').dataset.n].scores[box.dataset.c] = Number(v); }
@@ -558,15 +553,8 @@ function renderForm(){
     $$('button', box).forEach(x => x.classList.toggle('on', x.dataset.v === cur));
     F.confirm = false; progress(); saveDraft();
   };
-  app.onchange = e => {
-    if (e.target.id !== 'rolesel') return;
-    const v = e.target.value;
-    if (v === '__other'){ F.roleOther = true; F.role = ''; } else { F.roleOther = false; F.role = v; }
-    saveDraft(); renderForm(); if (v === '__other'){ const ro = $('#roleown'); if (ro) ro.focus(); }
-  };
   app.oninput = e => {
     if (e.target.id === 'guest') F.guest = e.target.value;
-    else if (e.target.id === 'roleown') F.role = e.target.value;
     else if (e.target.id === 'overall') F.fin.overall = e.target.value;
     else if (e.target.dataset.cm !== undefined) F.answers[e.target.closest('.dish').dataset.n].comment = e.target.value;
     saveDraft();
@@ -582,8 +570,7 @@ async function sendForm(){
   const T = F.T, err = $('#err'), btn = $('#send');
   const guest = F.guest.trim();
   if (!guest){ err.textContent = 'Укажите ваше имя в начале страницы.'; $('#guest').focus(); return; }
-  F.role = (F.role || '').trim();
-  if (!F.role){ err.textContent = 'Отметьте или впишите вашу роль в начале страницы.'; return; }
+  const pp = (T.participants || []).find(x => x.name === guest); F.role = (pp && pp.role) || '';
   const empty = T.dishes.filter(d => !F.answers[d.n].skip && critOf(T, d).some(c => !F.answers[d.n].scores[c])).map(d => (isBlind(T) ? shownName(T, d) : labelOf(T, d)).toLowerCase());
   if (empty.length && !F.confirm){ F.confirm = true; err.textContent = 'Не все оценки проставлены: ' + empty.join(', ') + '. Можно дополнить или нажать ещё раз, чтобы отправить как есть.'; btn.textContent = 'Отправить как есть'; return; }
   btn.disabled = true; btn.textContent = 'Отправляем'; err.textContent = '';
