@@ -848,7 +848,7 @@ function renderWizard(){
   }
   if (W.step === 3){
     h += '<h3>Участники</h3><p class="sub">Кто будет оценивать. В анкете человек нажмёт своё имя. Можно пропустить – тогда участники впишут имя сами</p><div class="lines" id="parts">' +
-      W.parts.map((p, i) => '<div class="ln" data-i="' + i + '" style="grid-template-columns:1fr 130px 30px"><input type="text" data-pk="name" placeholder="Имя" value="' + esc(p.name) + '"><select data-pk="role">' + ['', ...ROLES].map(r => '<option value="' + r + '"' + (r === (p.role || '') ? ' selected' : '') + '>' + (r || 'Роль') + '</option>').join('') + '</select><button class="x" data-delpart="' + i + '">×</button></div>').join('') +
+      W.parts.map((p, i) => '<div class="ln" data-i="' + i + '" style="grid-template-columns:1fr 30px"><input type="text" data-pk="name" placeholder="Имя" value="' + esc(p.name) + '"><button class="x" data-delpart="' + i + '">×</button></div>').join('') +
       '</div><button class="btn sm" id="add-part">+ Участник</button>';
   }
   if (W.step === 4){
@@ -865,7 +865,7 @@ function syncWizard(){
   if (W.step === 0) $$('[data-p]').forEach(el => { const p = P[el.dataset.p]; p.name = $('[data-pf=name]', el).value.trim(); const r = $('[data-pf=role]', el); if (r) p.role = r.value.trim() || 'Другое'; });
   if (W.step === 1){ T.project = $('#w-proj').value.trim(); T.date = $('#w-date').value.trim(); const t = $('#w-title').value.trim(); if (t !== autoTitle(P)) W.titleEdited = true; T.title = t; }
   if (W.step === 2) $$('[data-d]').forEach(el => { const d = D[el.dataset.d]; ['name','desc','allergens'].forEach(k => d[k] = $('[data-df=' + k + ']', el).value.trim()); });
-  if (W.step === 3) W.parts = $$('#parts .ln').map(ln => ({name: $('[data-pk=name]', ln).value.trim(), role: $('[data-pk=role]', ln).value}));
+  if (W.step === 3) W.parts = $$('#parts .ln').map(ln => ({name: $('[data-pk=name]', ln).value.trim(), role: ''}));
   if (W.step === 4){ W.products = $('#w-prod').value; const g = $('#w-greet').value; if (g !== autoGreeting(T, P, D)) W.greetEdited = true; T.greeting = g; }
 }
 function wireWizard(){
