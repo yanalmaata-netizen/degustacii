@@ -296,6 +296,7 @@ function imgFallback(el){
   el.dataset.tried = 1;
   apiGet({action:'img', id}).then(r => { if (r.ok) el.src = r.data; else el.remove(); }).catch(() => el.remove());
 }
+function dishPhoto(T, d){ return d.photo || ('photos/' + T.id + '/' + d.n + '.jpg'); }
 function photoTag(url, id, cls, alt){
   if (!url) return '';
   return '<img class="' + cls + '" src="' + esc(url) + '" data-id="' + esc(id || '') + '" alt="' + esc(alt || '') + '" loading="lazy" onerror="imgFallback(this)">';
@@ -517,7 +518,7 @@ function renderForm(){
     }
     prev = d.block;
     const a = F.answers[d.n];
-    h += '<div class="orn"><i></i></div><section class="dish' + (a.skip ? ' skip' : '') + '" data-n="' + d.n + '"><div class="dhead"><p class="lab">' + esc(isBlind(T) ? 'Слепая дегустация' : labelOf(T, d)) + '</p><h3>' + esc(shownName(T, d)) + '</h3>';
+    h += '<div class="orn"><i></i></div><section class="dish' + (a.skip ? ' skip' : '') + '" data-n="' + d.n + '">' + (isBlind(T) ? '' : photoTag(dishPhoto(T, d), '', 'ph', d.name)) + '<div class="dhead"><p class="lab">' + esc(isBlind(T) ? 'Слепая дегустация' : labelOf(T, d)) + '</p><h3>' + esc(shownName(T, d)) + '</h3>';
     if (d.desc && !isBlind(T)) h += '<p class="desc">' + esc(d.desc) + '</p>';
     if (d.allergens) h += '<p class="allerg">Аллергены: ' + esc(d.allergens) + '</p>';
     h += '</div><div class="body"><div class="qrow" style="border-top:0;padding-top:0"><span class="muted" style="font-size:13px">Не пробовали эту позицию?</span><div class="chips" data-skip><button type="button" data-v="skip"' + (a.skip ? ' class="on"' : '') + '>Не пробовал(а)</button></div></div><div class="rate"><p class="legend">1 – слабо, 5 – отлично</p>';
@@ -693,7 +694,7 @@ function renderResults(){
     h += '<div class="orn"><i></i></div><section class="block"><h2 class="bh">' + esc(b || 'Позиции') + '</h2><p class="bsub">' + esc([bb.signature, critOf(T, {block: b}).join(' – ')].filter(Boolean).join(' · ')) + '</p>';
     T.dishes.filter(d => d.block === b).forEach(d => {
       const s = stats[d.n];
-      h += '<article class="dish">' + photoTag(d.photo, d.photoId, 'ph', d.name) + '<div class="dhead"><p class="lab">' + esc(labelOf(T, d)) + '</p><div class="tt"><h3>' + esc(d.name) + '</h3><div class="score"><b>' + fmt(s.avg) + '</b><span>из 5</span></div></div>' + (isBlind(T) ? '<p class="rec">В анкете – образец ' + esc(codeOf(T, d)) + '</p>' : '');
+      h += '<article class="dish">' + photoTag(dishPhoto(T, d), d.photoId, 'ph', d.name) + '<div class="dhead"><p class="lab">' + esc(labelOf(T, d)) + '</p><div class="tt"><h3>' + esc(d.name) + '</h3><div class="score"><b>' + fmt(s.avg) + '</b><span>из 5</span></div></div>' + (isBlind(T) ? '<p class="rec">В анкете – образец ' + esc(codeOf(T, d)) + '</p>' : '');
       if (d.desc) h += '<p class="desc">' + esc(d.desc) + '</p>';
       if (s.yes + s.no) h += '<p class="rec">Порекомендовали бы гостю: <b>' + s.yes + ' из ' + (s.yes + s.no) + '</b></p>';
       if (s.skip) h += '<p class="rec">Не пробовали: <b>' + s.skip + '</b></p>';
