@@ -324,6 +324,7 @@ function route(){
   if (p === 't' && id) return viewForm(decodeURIComponent(id));
   if (p === 'r' && id) return viewResults(decodeURIComponent(id));
   if (p === 'd' && id) return viewTasting(decodeURIComponent(id));
+  if (p === 'edit' && id === 'preset-ari') return viewEditor('', 'ari');
   if (p === 'edit') return viewEditor(id ? decodeURIComponent(id) : '');
   if (p === 'kitchen' && id) return viewKitchen(decodeURIComponent(id));
   return viewHome();
@@ -774,7 +775,7 @@ function autoGreeting(T, P, D){
 }
 function plural(n, a, b, c){ const m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20) ? b : c); }
 
-async function viewEditor(id){
+async function viewEditor(id, preset){
   loading();
   let T = null, cat = [];
   try { cat = (await apiGet({action:'catalog'})).tastings || []; if (id) T = await apiGet({t: id}); } catch(e){ return state('Нет связи', 'Обновите страницу.'); }
@@ -785,6 +786,14 @@ async function viewEditor(id){
     W = {isNew: true, step: 0, projects, greetEdited: false, titleEdited: false,
       T: {id: 'dg-' + String(Math.max(0, ...nums) + 1).padStart(2, '0'), project: (cat[0] && cat[0].project) || '', date: todayText(), title: '', greeting: '', chefPhoto: '', chefPhotoId: '', open: true},
       P: [{role: 'Шеф-повар', name: '', jar: ['Соль','Сладость','Кислотность']}], D: [], parts: [], products: '', blind: false, codes: {}};
+    if (preset === 'ari'){
+      const bar = ROLE_PRESETS.find(x => x.role === 'Шеф-бармен');
+      W.T.project = 'DIO Grand Cafe';
+      W.P = [{role: 'Шеф-бармен', name: 'Ари', jar: bar.jar.slice()}];
+      W.D = ['Сад Гесперид','Гименей','Нектар Диониса','Дельфийский оракул','Сизиф','Тирс','Посейдон & Амфитрита','Дар Афины','Горячий и белый шоколад','Горячий шоколад','Сад Геры','Пурпур Гекаты','Роса Афродиты']
+        .map(n => ({pi: 0, name: n, desc: n === 'Сад Геры' ? 'Безалкогольный' : '', allergens: '', section: '', photo: ''}));
+      W.parts = ['Гаухар','Данара','Эльмира','Руслан','Альбина','Зауре','Минара'].map(n => ({name: n, role: ''}));
+    }
   } else {
     const P = (T.blocks || []).map(b => { const pr = ROLE_PRESETS.find(x => (b.signature || '').indexOf(x.role) === 0 || x.block === b.name); const sig = b.signature || '';
       return pr ? {role: pr.role, name: sig.indexOf(pr.role) === 0 ? sig.slice(pr.role.length).trim() : sig, block: b.name, criteria: b.criteria} : {role: b.name || 'Другое', name: sig, block: b.name, criteria: b.criteria}; });
