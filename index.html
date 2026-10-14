@@ -504,9 +504,9 @@ function renderForm(){
   const inList = P.some(p => p.name === F.guest);
   h += '<div class="card">';
   if (P.length){
-    h += '<label class="l">Кто вы</label><div class="chips" data-who style="margin-bottom:14px">' + P.map(p => '<button type="button" data-v="' + esc(p.name) + '"' + (F.guest === p.name ? ' class="on"' : '') + '>' + esc(p.name) + '</button>').join('') + '<button type="button" data-v="__other"' + (F.guest && !inList ? ' class="on"' : '') + '>Другой участник</button></div>';
+    h += '<label class="l">Пожалуйста, выберите ваше имя</label><div class="chips" data-who style="margin-bottom:14px">' + P.map(p => '<button type="button" data-v="' + esc(p.name) + '"' + (F.guest === p.name ? ' class="on"' : '') + '>' + esc(p.name) + '</button>').join('') + '<button type="button" data-v="__other"' + (F.guest && !inList ? ' class="on"' : '') + '>Другой участник</button></div>';
   }
-  h += '<div class="f"' + (P.length && (inList || !F.guest) && !F.other ? ' hidden' : '') + ' id="guestbox"><label class="l" for="guest">Ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="off" value="' + esc(inList ? '' : F.guest) + '"></div>';
+  h += '<div class="f"' + (P.length && (inList || !F.guest) && !F.other ? ' hidden' : '') + ' id="guestbox"><label class="l" for="guest">Пожалуйста, напишите ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="off" value="' + esc(inList ? '' : F.guest) + '"></div>';
   const me = P.find(p => p.name === F.guest);
   h += '<div id="rolebox"' + (me && me.role ? ' hidden' : '') + '><label class="l">Ваша роль</label><select id="rolesel"><option value=""' + (!F.role && !F.roleOther ? ' selected' : '') + ' disabled>Выберите роль</option>' + ROLES.map(r => '<option value="' + r + '"' + (F.role === r && !F.roleOther ? ' selected' : '') + '>' + r + '</option>').join('') + '<option value="__other"' + (F.roleOther ? ' selected' : '') + '>Другое</option></select>' + (F.roleOther ? '<div class="f" style="margin-top:12px"><label class="l" for="roleown">&#9998; Впишите вашу роль</label><input type="text" id="roleown" maxlength="60" autocomplete="off" value="' + esc(F.role) + '"></div>' : '') + '</div></div>';
   let prev = null;
