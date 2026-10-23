@@ -493,7 +493,25 @@ async function viewForm(id){
   if (dr){ Object.keys(dr.answers || {}).forEach(n => { if (F.answers[n]) Object.assign(F.answers[n], dr.answers[n]); }); Object.assign(F.fin, dr.fin || {}); F.role = dr.role || ''; F.guest = dr.guest || ''; F.roleOther = !!F.role && ROLES.indexOf(F.role) < 0; }
   renderForm();
 }
-function saveDraft(){ store.set(F.draftKey, {answers: F.answers, fin: F.fin, role: F.role, guest: F.guest}); }
+function saveDraft(){ store.set(F.draftKey, {answers: F.answers, fin: F.fin, role: F.role, guest: F.guest}); autoSave(); }
+// оценки уходят на сервер сами, без финальной кнопки: через 5 секунд после последнего изменения
+let autoTimer = null;
+function autoSave(){
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(async () => {
+    if (!F || store.get(F.sentKey) || !navigator.onLine) return;
+    const T = F.T, guest = (F.guest || '').trim(); if (!guest) return;
+    const pp = (T.participants || []).find(x => x.name === guest); const role = (pp && pp.role) || (F.role || '').trim();
+    const rows = [];
+    T.dishes.forEach(d => { const a = F.answers[d.n]; const rated = Object.keys(a.scores || {}).some(c => a.scores[c]);
+      if (!a.skip && !rated && !(a.comment || '').trim()) return;
+      const jar = {}; Object.keys(a.jar || {}).forEach(k => { if (a.jar[k]) jar[k] = a.jar[k]; });
+      const extra = a.skip ? {skip: true} : (Object.keys(jar).length ? {jar} : null);
+      rows.push({n: d.n, name: d.name, scores: a.skip ? {} : a.scores, portion: a.skip ? '' : a.portion, recommend: a.skip ? '' : a.recommend, comment: (a.comment || '').trim(), extra}); });
+    if (!rows.length) return;
+    try { await apiPost({tasting: T.id, guest, role, answers: rows}); } catch(e){}
+  }, 5000);
+}
 function renderForm(){
   const T = F.T; app.className = 'narrow';
   let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span></p><h1>' + esc(T.title || 'Дегустация') + '</h1><p class="date">' + esc(T.date || '') + '</p>';
