@@ -278,7 +278,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '10 от 02.11.2026';
+const APP_VERSION = '11 от 02.11.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -298,9 +298,18 @@ const store = { get(k){ try { return JSON.parse(localStorage.getItem(k)); } catc
 const pin = () => '546378'; // служебный ключ приложения, пользователю не показывается
 
 function timeout(ms){ const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal; }
+// участники, добавленные к дегустации без правки таблицы
+const EXTRA_PARTICIPANTS = {'dg-08': [{name: 'Yan', role: ''}]};
+function addExtra(t){
+  if (!t || !t.id || !EXTRA_PARTICIPANTS[t.id]) return;
+  t.participants = t.participants || [];
+  EXTRA_PARTICIPANTS[t.id].forEach(p => { if (!t.participants.some(x => x.name === p.name)) t.participants.push(p); });
+}
 async function apiGet(params){
   const r = await fetch(API + '?' + new URLSearchParams(params), {signal: timeout(30000)});
-  return r.json();
+  const j = await r.json();
+  try { addExtra(j); addExtra(j && j.tasting); } catch(e){}
+  return j;
 }
 async function apiPost(body){
   const r = await fetch(API, {method:'POST', body: JSON.stringify(body), signal: timeout(60000)});
