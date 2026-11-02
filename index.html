@@ -123,6 +123,26 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy2)}
 .scale button.on{background:var(--grad-or);border-color:transparent;color:#fff}
 .qrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 2px;border-top:1px solid var(--line)}
 .qrow .chips{flex-wrap:nowrap;flex-shrink:0}
+.greet1{font-family:var(--serif);font-style:italic;font-size:19px;margin:0 0 14px}
+.poscount{margin:14px 0 0;font-size:13px;color:#C9CFDD}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:16px 0 0;padding:4px;border-radius:14px;background:var(--card);border:1px solid var(--line)}
+body.nav .tabs{top:calc(env(safe-area-inset-top,0px) + 58px)}
+.tabs button{border:0;background:transparent;font:600 15px var(--sans);padding:11px 8px;border-radius:10px;cursor:pointer;color:var(--muted)}
+.tabs button.on{background:var(--grad-navy);color:#fff}
+#tab-rate .progress{top:calc(env(safe-area-inset-top,0px) + 62px)}
+.mblock{font-family:var(--serif);font-size:34px;font-weight:600;margin:26px 0 0}
+.mblock span{display:block;font-family:var(--sans);font-size:13px;font-weight:500;color:var(--muted)}
+.mgroup{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px 18px 8px;margin-top:16px}
+.mgroup h3{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px;font-size:26px}
+.mgroup h3 span{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--or2)}
+.mgroup ol{list-style:none;margin:0;padding:0}
+.mgroup li{display:flex;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
+.mgroup li:first-child{border-top:0}
+.mgroup li b{flex:0 0 28px;height:28px;border-radius:50%;background:var(--grad-or);color:#fff;font:600 13px/28px var(--sans);text-align:center;margin-top:1px}
+.mname{margin:0;font-size:16px;font-weight:600;line-height:1.35}
+.mdesc{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.mall{margin:4px 0 0;font-size:12px;color:var(--or2)}
+.rsec{font-family:var(--serif);font-weight:600;font-size:32px;margin:34px 0 -4px;padding-bottom:6px;border-bottom:2px solid var(--or1)}
 .comment{margin-top:12px}
 .dish.skip .rate{display:none}
 .qrow.jarrow{flex-direction:column;align-items:stretch;gap:8px}
@@ -255,7 +275,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '8 от 23.09.2026';
+const APP_VERSION = '9 от 02.11.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -515,11 +535,24 @@ function autoSave(){
 function renderForm(){
   const T = F.T; app.className = 'narrow';
   let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span></p><h1>' + esc(T.title || 'Дегустация') + '</h1><p class="date">' + esc(T.date || '') + '</p>';
-  if (T.greeting) h += '<p class="letter">' + esc(T.greeting) + '</p>';
+  if (T.greeting) h += '<p class="greet1">' + esc(String(T.greeting).split('\n')[0]) + '</p>';
   h += '<div class="chef">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="sign">' + esc(T.signature || '') + '</p></div>';
-  const groups = []; T.dishes.forEach(d => { let g = groups.find(x => x.name === d.block); if (!g) groups.push(g = {name: d.block, items: []}); g.items.push(d); });
-  groups.forEach(g => h += '<div class="menu"><p>' + esc(groups.length > 1 && g.name ? g.name : 'Меню дегустации') + '</p><ol>' + g.items.map(d => '<li>' + esc(shownName(T, d)) + '</li>').join('') + '</ol></div>');
-  h += '</header><div class="progress"><span id="pt"></span><div class="track"><div class="fill" id="pf"></div></div></div>';
+  h += '<p class="poscount">' + T.dishes.length + ' ' + plural(T.dishes.length, 'позиция', 'позиции', 'позиций') + '</p></header>';
+  // вкладки
+  h += '<nav class="tabs"><button type="button" data-tab="rate" class="' + (F.tab === 'menu' ? '' : 'on') + '">Оценка</button><button type="button" data-tab="menu" class="' + (F.tab === 'menu' ? 'on' : '') + '">Меню</button></nav>';
+  // вкладка «Меню»: разделы по блокам и разделам
+  const mgroups = []; T.dishes.forEach(d => { const key = (d.block || '') + '|' + (d.section || ''); let g = mgroups.find(x => x.key === key); if (!g) mgroups.push(g = {key, block: d.block, section: d.section, items: []}); g.items.push(d); });
+  const multiBlock = new Set(T.dishes.map(d => d.block)).size > 1;
+  h += '<div id="tab-menu"' + (F.tab === 'menu' ? '' : ' hidden') + '>';
+  let lastBlock = null;
+  mgroups.forEach(g => {
+    if (multiBlock && g.block !== lastBlock){ const b = (T.blocks || []).find(x => x.name === g.block); h += '<h2 class="mblock">' + esc(g.block) + (b && b.signature ? '<span>' + esc(b.signature) + '</span>' : '') + '</h2>'; lastBlock = g.block; }
+    h += '<section class="mgroup"><h3>' + esc(g.section || (multiBlock ? 'Позиции' : 'Меню дегустации')) + '<span>' + g.items.length + '</span></h3><ol>' +
+      g.items.map((d, i) => '<li><b>' + (i + 1) + '</b><div><p class="mname">' + esc(shownName(T, d)) + '</p>' + (d.desc && !isBlind(T) ? '<p class="mdesc">' + esc(d.desc) + '</p>' : '') + (d.allergens ? '<p class="mall">Аллергены: ' + esc(d.allergens) + '</p>' : '') + '</div></li>').join('') + '</ol></section>';
+  });
+  h += '<button type="button" class="btn pri wide" data-tab="rate" style="margin-top:20px">Перейти к оценке</button></div>';
+  h += '<div id="tab-rate"' + (F.tab === 'menu' ? ' hidden' : '') + '>';
+  h += '<div class="progress"><span id="pt"></span><div class="track"><div class="fill" id="pf"></div></div></div>';
   const P = (T.participants || []).filter(p => p.name);
   const inList = P.some(p => p.name === F.guest);
   h += '<div class="card">';
@@ -535,6 +568,7 @@ function renderForm(){
       h += '<div class="orn"><i></i></div><header class="hero bhero"><p class="brand"><span>' + esc(projOf(T)) + '</span></p><h1>' + esc(d.block) + '</h1>' + (b && b.signature ? '<p class="sign">' + esc(b.signature) + '</p>' : '') + '</header>';
     }
     prev = d.block;
+    if (d.section && (i === 0 || T.dishes[i - 1].section !== d.section || T.dishes[i - 1].block !== d.block)) h += '<h2 class="rsec">' + esc(d.section) + '</h2>';
     const a = F.answers[d.n];
     h += '<div class="orn"><i></i></div><section class="dish' + (a.skip ? ' skip' : '') + '" data-n="' + d.n + '">' + (isBlind(T) ? '' : photoTag(dishPhoto(T, d), '', 'ph', d.name)) + '<div class="dhead"><p class="lab">' + esc(isBlind(T) ? 'Слепая дегустация' : labelOf(T, d)) + '</p><h3>' + esc(shownName(T, d)) + '</h3>';
     if (d.desc && !isBlind(T)) h += '<p class="desc">' + esc(d.desc) + '</p>';
@@ -553,8 +587,12 @@ function renderForm(){
   h += '<div class="f"><label class="l">Что понравилось больше всего</label>' + chipsOf('best') + '</div>';
   h += '<div class="f"><label class="l">Что стоит доработать</label>' + chipsOf('fix') + '</div>';
   h += '<div class="f"><label class="l">Общее впечатление от дегустации</label><textarea id="overall" rows="3" maxlength="1500">' + esc(F.fin.overall) + '</textarea></div></div></section>';
-  h += '<button class="btn pri wide" id="send" style="margin-top:28px">Отправить оценки</button><p class="err" id="err"></p>';
+  h += '<button class="btn pri wide" id="send" style="margin-top:28px">Отправить оценки</button><p class="err" id="err"></p></div>';
   app.innerHTML = h;
+  $$('[data-tab]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); F.tab = b.dataset.tab;
+    $('#tab-menu').hidden = F.tab !== 'menu'; $('#tab-rate').hidden = F.tab === 'menu';
+    $$('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === F.tab));
+    const t = $('.tabs'); window.scrollTo({top: t.offsetTop - 70, behavior: 'smooth'}); }));
   progress();
   app.onclick = e => {
     const b = e.target.closest('button[data-v]'); if (!b) return;
