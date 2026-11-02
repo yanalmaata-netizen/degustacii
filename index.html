@@ -123,6 +123,9 @@ input:focus,select:focus,textarea:focus{border-color:var(--navy2)}
 .scale button.on{background:var(--grad-or);border-color:transparent;color:#fff}
 .qrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 2px;border-top:1px solid var(--line)}
 .qrow .chips{flex-wrap:nowrap;flex-shrink:0}
+.whoami{margin:14px 2px 0;font-size:14px;color:var(--muted)}
+.whoami b{color:var(--ink)}
+.whoami button{border:0;background:none;color:var(--or2);font:600 14px var(--sans);text-decoration:underline;cursor:pointer;padding:0 4px}
 .greet1{font-family:var(--serif);font-style:italic;font-size:19px;margin:0 0 14px}
 .poscount{margin:14px 0 0;font-size:13px;color:#C9CFDD}
 .tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:6;display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:16px 0 0;padding:4px;border-radius:14px;background:var(--card);border:1px solid var(--line)}
@@ -275,7 +278,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '9 от 02.11.2026';
+const APP_VERSION = '10 от 02.11.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -532,7 +535,30 @@ function autoSave(){
     try { await apiPost({tasting: T.id, guest, role, answers: rows}); } catch(e){}
   }, 5000);
 }
+function renderNameStep(){
+  const T = F.T; app.className = 'narrow'; window.scrollTo(0, 0);
+  const P = (T.participants || []).filter(p => p.name);
+  const inList = P.some(p => p.name === F.guest);
+  let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span></p><h1>' + esc(T.title || 'Дегустация') + '</h1><p class="date">' + esc(T.date || '') + '</p>';
+  if (T.greeting) h += '<p class="letter">' + esc(T.greeting) + '</p>';
+  h += '<div class="chef">' + (T.chefPhoto ? '<img src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="sign">' + esc(T.signature || '') + '</p></div></header>';
+  h += '<div class="card">';
+  if (P.length) h += '<label class="l">Пожалуйста, выберите ваше имя</label><div class="chips" id="who">' + P.map(p => '<button type="button" data-n="' + esc(p.name) + '"' + (F.guest === p.name ? ' class="on"' : '') + '>' + esc(p.name) + '</button>').join('') + '<button type="button" data-n="__other"' + (F.other ? ' class="on"' : '') + '>Другой участник</button></div>';
+  const showInput = !P.length || F.other;
+  h += '<div' + (showInput ? '' : ' hidden') + ' style="margin-top:14px"><label class="l" for="guest">Пожалуйста, напишите ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="name" value="' + esc(inList ? '' : F.guest) + '"><button type="button" class="btn pri wide" id="name-next" style="margin-top:14px">Далее</button><p class="err" id="nerr"></p></div>';
+  h += '</div>';
+  app.innerHTML = h; app.onclick = null; app.oninput = null;
+  const go = () => { F.step = 'main'; F.tab = 'menu'; saveDraft(); renderForm(); window.scrollTo(0, 0); };
+  $$('#who button').forEach(b => b.onclick = () => {
+    const p = P.find(x => x.name === b.dataset.n);
+    if (p){ F.guest = p.name; F.role = p.role || ''; F.other = false; go(); }
+    else { F.other = true; renderNameStep(); setTimeout(() => { const g = $('#guest'); g && g.focus(); }, 50); }
+  });
+  const nx = $('#name-next'); if (nx) nx.onclick = () => { const v = $('#guest').value.trim(); if (!v){ $('#nerr').textContent = 'Напишите ваше имя.'; return; } F.guest = v; F.role = ''; go(); };
+}
 function renderForm(){
+  if (!F.step) F.step = F.guest ? 'main' : 'name';
+  if (F.step === 'name') return renderNameStep();
   const T = F.T; app.className = 'narrow';
   let h = '<header class="hero"><p class="brand"><span>' + esc(projOf(T)) + '</span></p><h1>' + esc(T.title || 'Дегустация') + '</h1><p class="date">' + esc(T.date || '') + '</p>';
   if (T.greeting) h += '<p class="greet1">' + esc(String(T.greeting).split('\n')[0]) + '</p>';
@@ -550,17 +576,10 @@ function renderForm(){
     h += '<section class="mgroup"><h3>' + esc(g.section || (multiBlock ? 'Позиции' : 'Меню дегустации')) + '<span>' + g.items.length + '</span></h3><ol>' +
       g.items.map((d, i) => '<li><b>' + (i + 1) + '</b><div><p class="mname">' + esc(shownName(T, d)) + '</p>' + (d.desc && !isBlind(T) ? '<p class="mdesc">' + esc(d.desc) + '</p>' : '') + (d.allergens ? '<p class="mall">Аллергены: ' + esc(d.allergens) + '</p>' : '') + '</div></li>').join('') + '</ol></section>';
   });
-  h += '<button type="button" class="btn pri wide" data-tab="rate" style="margin-top:20px">Перейти к оценке</button></div>';
+  h += '<button type="button" class="btn pri wide" data-tab="rate" style="margin-top:20px">Начать оценку</button></div>';
   h += '<div id="tab-rate"' + (F.tab === 'menu' ? ' hidden' : '') + '>';
   h += '<div class="progress"><span id="pt"></span><div class="track"><div class="fill" id="pf"></div></div></div>';
-  const P = (T.participants || []).filter(p => p.name);
-  const inList = P.some(p => p.name === F.guest);
-  h += '<div class="card">';
-  if (P.length){
-    h += '<label class="l">Пожалуйста, выберите ваше имя</label><div class="chips" data-who style="margin-bottom:14px">' + P.map(p => '<button type="button" data-v="' + esc(p.name) + '"' + (F.guest === p.name ? ' class="on"' : '') + '>' + esc(p.name) + '</button>').join('') + '<button type="button" data-v="__other"' + (F.guest && !inList ? ' class="on"' : '') + '>Другой участник</button></div>';
-  }
-  h += '<div class="f"' + (P.length && (inList || !F.guest) && !F.other ? ' hidden' : '') + ' id="guestbox"><label class="l" for="guest">Пожалуйста, напишите ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="off" value="' + esc(inList ? '' : F.guest) + '"></div>';
-  h += '</div>';
+  h += '<p class="whoami">Вы: <b>' + esc(F.guest) + '</b> <button type="button" id="change-name">сменить</button></p>';
   let prev = null;
   T.dishes.forEach((d, i) => {
     if (i > 0 && d.block && d.block !== prev){
@@ -589,6 +608,7 @@ function renderForm(){
   h += '<div class="f"><label class="l">Общее впечатление от дегустации</label><textarea id="overall" rows="3" maxlength="1500">' + esc(F.fin.overall) + '</textarea></div></div></section>';
   h += '<button class="btn pri wide" id="send" style="margin-top:28px">Отправить оценки</button><p class="err" id="err"></p></div>';
   app.innerHTML = h;
+  $('#change-name').onclick = e => { e.stopPropagation(); F.step = 'name'; renderForm(); };
   $$('[data-tab]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); F.tab = b.dataset.tab;
     $('#tab-menu').hidden = F.tab !== 'menu'; $('#tab-rate').hidden = F.tab === 'menu';
     $$('.tabs [data-tab]').forEach(x => x.classList.toggle('on', x.dataset.tab === F.tab));
@@ -627,7 +647,7 @@ function progress(){
 async function sendForm(){
   const T = F.T, err = $('#err'), btn = $('#send');
   const guest = F.guest.trim();
-  if (!guest){ err.textContent = 'Укажите ваше имя в начале страницы.'; $('#guest').focus(); return; }
+  if (!guest){ F.step = 'name'; renderForm(); return; }
   const pp = (T.participants || []).find(x => x.name === guest); F.role = (pp && pp.role) || '';
   const empty = T.dishes.filter(d => !F.answers[d.n].skip && critOf(T, d).some(c => !F.answers[d.n].scores[c])).map(d => (isBlind(T) ? shownName(T, d) : labelOf(T, d)).toLowerCase());
   if (empty.length && !F.confirm){ F.confirm = true; err.textContent = 'Не все оценки проставлены: ' + empty.join(', ') + '. Можно дополнить или нажать ещё раз, чтобы отправить как есть.'; btn.textContent = 'Отправить как есть'; return; }
