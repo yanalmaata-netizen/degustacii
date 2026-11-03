@@ -278,7 +278,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '13 от 03.11.2026';
+const APP_VERSION = '14 от 03.11.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -299,7 +299,7 @@ const pin = () => '546378'; // служебный ключ приложения,
 
 function timeout(ms){ const c = new AbortController(); setTimeout(() => c.abort(), ms); return c.signal; }
 // участники, добавленные к дегустации без правки таблицы
-const EXTRA_PARTICIPANTS = {'dg-08': [{name: 'Yan', role: ''}, {name: 'Shyray', role: ''}]};
+const EXTRA_PARTICIPANTS = {'dg-08': [{name: 'Yan', role: ''}]};
 // правки дегустации без правки таблицы
 const PATCH = {'dg-08': {date: '3 ноября 2026, 15:00', from: '12:00', to: '15:00'}};
 // позиции, которых не было на дегустации
