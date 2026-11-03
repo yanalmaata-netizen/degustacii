@@ -278,7 +278,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '12 от 02.11.2026';
+const APP_VERSION = '13 от 03.11.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Аромат','Вкус','Текстура','Общее впечатление'];
@@ -302,9 +302,12 @@ function timeout(ms){ const c = new AbortController(); setTimeout(() => c.abort(
 const EXTRA_PARTICIPANTS = {'dg-08': [{name: 'Yan', role: ''}, {name: 'Shyray', role: ''}]};
 // правки дегустации без правки таблицы
 const PATCH = {'dg-08': {date: '3 ноября 2026, 15:00', from: '12:00', to: '15:00'}};
+// позиции, которых не было на дегустации
+const HIDE_DISHES = {'dg-08': [11]};
 function addExtra(t){
   if (t && t.id && PATCH[t.id]){ const p = PATCH[t.id]; t.date = p.date; if (t.greeting) t.greeting = String(t.greeting).split(p.from).join(p.to); }
   if (Array.isArray(t && t.tastings)) t.tastings.forEach(x => { if (PATCH[x.id]) x.date = PATCH[x.id].date; });
+  if (t && t.id && HIDE_DISHES[t.id] && Array.isArray(t.dishes)) t.dishes = t.dishes.filter(d => HIDE_DISHES[t.id].indexOf(Number(d.n)) < 0);
   if (!t || !t.id || !EXTRA_PARTICIPANTS[t.id]) return;
   t.participants = t.participants || [];
   EXTRA_PARTICIPANTS[t.id].forEach(p => { if (!t.participants.some(x => x.name === p.name)) t.participants.push(p); });
