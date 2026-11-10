@@ -278,7 +278,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '14 от 03.11.2026';
+const APP_VERSION = '15 от 10.11.2026';
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
 const KC = ['Внешний вид','Вкус','Текстура','Общее впечатление'];
@@ -564,13 +564,27 @@ function renderNameStep(){
   h += '<div' + (showInput ? '' : ' hidden') + ' style="margin-top:14px"><label class="l" for="guest">Пожалуйста, напишите ваше имя</label><input type="text" id="guest" maxlength="100" autocomplete="name" value="' + esc(inList ? '' : F.guest) + '"><button type="button" class="btn pri wide" id="name-next" style="margin-top:14px">Далее</button><p class="err" id="nerr"></p></div>';
   h += '</div>';
   app.innerHTML = h; app.onclick = null; app.oninput = null;
-  const go = () => { F.step = 'main'; F.tab = 'menu'; saveDraft(); renderForm(); window.scrollTo(0, 0); };
+  const go = async () => { await restoreFromServer(); F.step = 'main'; F.tab = 'menu'; saveDraft(); renderForm(); window.scrollTo(0, 0); };
   $$('#who button').forEach(b => b.onclick = () => {
     const p = P.find(x => x.name === b.dataset.n);
     if (p){ F.guest = p.name; F.role = p.role || ''; F.other = false; go(); }
     else { F.other = true; renderNameStep(); setTimeout(() => { const g = $('#guest'); g && g.focus(); }, 50); }
   });
   const nx = $('#name-next'); if (nx) nx.onclick = () => { const v = $('#guest').value.trim(); if (!v){ $('#nerr').textContent = 'Напишите ваше имя.'; return; } F.guest = v; F.role = ''; go(); };
+}
+// если черновика в браузере нет – подтягиваем с сервера то, что участник уже отметил
+async function restoreFromServer(){
+  const T = F.T, guest = (F.guest || '').trim(); if (!guest) return;
+  const has = Object.values(F.answers).some(a => a.skip || (a.comment || '').trim() || Object.keys(a.scores || {}).some(c => a.scores[c]));
+  if (has) return;
+  app.innerHTML = '<div class="state"><div class="spin"></div><p class="muted">Загружаем ваши оценки</p></div>';
+  let r; try { r = await apiGet({action:'results', t: T.id}); } catch(e){ return; }
+  if (!r || !r.ok || !Array.isArray(r.answers)) return;
+  const last = {}; r.answers.forEach(a => { if (String(a['Гость']).trim() === guest) last[a['№']] = a; });
+  T.dishes.forEach(d => { const a = last[d.n]; if (!a) return; const ex = extraOf(a); const t = F.answers[d.n];
+    if (ex.skip){ t.skip = true; return; }
+    critOf(T, d).forEach(c => { const v = num(a[c]); if (v) t.scores[c] = v; });
+    t.portion = a['Порция'] || ''; t.recommend = recOf(a); t.comment = commentOf(a); t.jar = ex.jar || {}; });
 }
 function renderForm(){
   if (!F.step) F.step = F.guest ? 'main' : 'name';
