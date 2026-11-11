@@ -1,0 +1,22 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Создание дегустации</title>
+<style>body{margin:0;font:16px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;background:#F2F0EC;color:#1D2230;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;text-align:center}
+@media (prefers-color-scheme:dark){body{background:#0B111F;color:#EDE8E0}}</style></head>
+<body><p id="m">Создаём дегустацию…</p>
+<script>
+const API="https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec";
+const DATA={"id": "dg-10", "project": "DIO Grand Cafe", "date": "11 ноября 2026, 15:30", "title": "Дегустация от шеф-повара", "active": true, "greeting": "Добрый день, уважаемый коллега.\nПриглашаем вас на дегустацию в DIO Grand Cafe – 11 ноября 2026, 15:30. Шеф-повар Санжар Отарбаев представит 17 позиций: салаты и закуски, горячие блюда, суп, десерты. Просим оценить каждую позицию и оставить пару слов от себя – ваше мнение для нас важно.", "signature": "Шеф-повар Санжар Отарбаев", "participants": [{"name": "Гаухар", "role": ""}, {"name": "Данара", "role": ""}, {"name": "Эльмира", "role": ""}, {"name": "Руслан", "role": ""}, {"name": "Альбина", "role": ""}, {"name": "Зауре", "role": ""}, {"name": "Минара", "role": ""}, {"name": "Yan", "role": ""}], "blocks": [{"name": "Кухня", "signature": "Шеф-повар Санжар Отарбаев", "criteria": ["Внешний вид", "Вкус", "Текстура", "Общее впечатление"]}], "settings": {"jar": {"Кухня": ["Соль", "Сладость", "Кислотность"]}, "blind": false, "codes": {}, "excluded": []}, "dishes": [{"n": 1, "block": "Кухня", "section": "Салаты и закуски", "name": "Плоский круассан"}, {"n": 2, "block": "Кухня", "section": "Салаты и закуски", "name": "Цезарь с курицей су-вид"}, {"n": 3, "block": "Кухня", "section": "Салаты и закуски", "name": "Карпаччо с тёртым фуа-гра"}, {"n": 4, "block": "Кухня", "section": "Салаты и закуски", "name": "Пряная кукуруза"}, {"n": 5, "block": "Кухня", "section": "Горячие блюда", "name": "Бургер"}, {"n": 6, "block": "Кухня", "section": "Горячие блюда", "name": "Ризотто с томлёным ребром"}, {"n": 7, "block": "Кухня", "section": "Горячие блюда", "name": "Лингвини с морепродуктами"}, {"n": 8, "block": "Кухня", "section": "Горячие блюда", "name": "Томлёное ребро"}, {"n": 9, "block": "Кухня", "section": "Горячие блюда", "name": "Сате с морепродуктами"}, {"n": 10, "block": "Кухня", "section": "Горячие блюда", "name": "Шатобриан"}, {"n": 11, "block": "Кухня", "section": "Горячие блюда", "name": "Паста с креветками"}, {"n": 12, "block": "Кухня", "section": "Горячие блюда", "name": "Паста с сёмгой"}, {"n": 13, "block": "Кухня", "section": "Горячие блюда", "name": "Болоньезе"}, {"n": 14, "block": "Кухня", "section": "Горячие блюда", "name": "Дорадо по-сицилийски"}, {"n": 15, "block": "Кухня", "section": "Суп", "name": "Суп буйабес"}, {"n": 16, "block": "Кухня", "section": "Десерты", "name": "Лимонная тарталетка"}, {"n": 17, "block": "Кухня", "section": "Десерты", "name": "Наполеон"}]};
+const m=document.getElementById('m');
+(async()=>{
+  try{
+    const ex=await (await fetch(API+'?t='+DATA.id)).json();
+    if(ex && !ex.error){ m.textContent='Дегустация уже создана, открываем…'; }
+    else{
+      const r=await (await fetch(API,{method:'POST',body:JSON.stringify({action:'create',pin:'546378',data:DATA})})).json();
+      if(!r.ok) throw new Error(r.error||'ошибка');
+      m.textContent='Готово, открываем…';
+    }
+    setTimeout(()=>location.replace('/#/d/'+DATA.id),800);
+  }catch(e){ m.textContent='Не получилось: '+e.message+'. Проверьте интернет и обновите страницу.'; }
+})();
+</script></body></html>
