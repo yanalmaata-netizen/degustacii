@@ -278,7 +278,7 @@ body.nav .flt,body.nav .progress{top:calc(env(safe-area-inset-top,0px) + 53px)}
 <main id="app"><div class="state"><div class="spin"></div><p class="muted">Загружаем</p></div></main>
 <script>
 'use strict';
-const APP_VERSION = '17 от 11.11.2026';
+const APP_VERSION = '18 от 24.11.2026';
 const MOVE_AFTER = {'dg-11': [[18, 14]]};
 const API = 'https://script.google.com/macros/s/AKfycbyhbatWUegEAh9yAj-PlJ1XAxogDaR9OHeBsLzNRldkBhaUz3RjhsQ7AF39GiB6nhcxuA/exec';
 const BASE = location.origin + location.pathname;
@@ -593,6 +593,9 @@ async function restoreFromServer(){
     if (ex.skip){ t.skip = true; return; }
     critOf(T, d).forEach(c => { const v = num(a[c]); if (v) t.scores[c] = v; });
     t.portion = a['Порция'] || ''; t.recommend = recOf(a); t.comment = commentOf(a); t.jar = ex.jar || {}; });
+  const fn = Math.max.apply(null, T.dishes.map(d => Number(d.n) || 0)) + 1, fa = last[fn];
+  if (fa && !F.fin.best && !F.fin.fix && !F.fin.overall){ const c = String(fa['Комментарий'] || ''); const g = re => { const m = c.match(re); return m ? m[1].trim() : ''; };
+    F.fin.best = g(/Лучшее: ([\s\S]*?)(?:\. Доработать: |\. Общее впечатление: |$)/); F.fin.fix = g(/Доработать: ([\s\S]*?)(?:\. Общее впечатление: |$)/); F.fin.overall = g(/Общее впечатление: ([\s\S]*)$/); }
 }
 function renderForm(){
   if (!F.step) F.step = F.guest ? 'main' : 'name';
@@ -719,7 +722,8 @@ window.addEventListener('online', queueFlush);
 setInterval(queueFlush, 20000);
 function thanks(T, queued){
   window.scrollTo(0, 0); app.className = 'narrow';
-  app.innerHTML = '<div class="thanks">' + (T.chefPhoto ? '<img class="chefbig" src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="letter">Благодарю вас за участие в дегустации.</p><p class="sign" style="color:var(--or2)">' + esc(T.signature || '') + '</p>' + (queued ? '<p class="sub" id="qnote" style="margin-top:16px">Интернета сейчас нет – оценки сохранены на телефоне и отправятся сами, когда появится связь. Страницу можно закрыть, но лучше открыть её ещё раз при сети.</p>' : '') + '</div>';
+  app.innerHTML = '<div class="thanks">' + (T.chefPhoto ? '<img class="chefbig" src="' + esc(T.chefPhoto) + '" alt="" onerror="this.remove()">' : '') + '<p class="letter">Благодарю вас за участие в дегустации.</p><p class="sign" style="color:var(--or2)">' + esc(T.signature || '') + '</p>' + '<p style="margin-top:22px"><button type="button" class="btn navy" id="edit-again">Изменить оценки</button></p>' + (queued ? '<p class="sub" id="qnote" style="margin-top:16px">Интернета сейчас нет – оценки сохранены на телефоне и отправятся сами, когда появится связь. Страницу можно закрыть, но лучше открыть её ещё раз при сети.</p>' : '') + '</div>';
+  const eb = document.getElementById('edit-again'); if (eb) eb.onclick = () => { store.del('dg-sent-' + T.id); store.del('dg-draft-' + T.id); viewForm(T.id); };
 }
 
 
